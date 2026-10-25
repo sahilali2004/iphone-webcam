@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 
-namespace IPhoneWebcam.Core.Transport;
+namespace PhoneWebcam.Core.Transport;
 
 public sealed class WifiTransport : ITransport
 {

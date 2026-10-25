@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tally light: the one signal colour set in the app (same as Windows). -->
+    <color name="tally_live">#E5322D</color>
+    <color name="tally_busy">#E8A317</color>
+    <color name="tally_idle">#8A8A8E</color>
+</resources>

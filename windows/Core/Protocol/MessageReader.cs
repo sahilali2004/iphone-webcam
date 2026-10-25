@@ -1,6 +1,6 @@
 using System.Buffers;
 
-namespace IPhoneWebcam.Core.Protocol;
+namespace PhoneWebcam.Core.Protocol;
 
 /// <summary>Reads framed messages from a stream. Not thread-safe: one reader loop per stream.</summary>
 public sealed class MessageReader(Stream stream)

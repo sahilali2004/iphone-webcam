@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 
-namespace IPhoneWebcam.App;
+namespace PhoneWebcam.App;
 
 /// <summary>bool → Visibility. ConverterParameter="Invert" flips it.</summary>
 public sealed class BoolToVisibilityConverter : IValueConverter

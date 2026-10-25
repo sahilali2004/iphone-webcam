@@ -1,10 +1,10 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using IPhoneWebcam.Core.Protocol;
-using IPhoneWebcam.Core.Security;
+using PhoneWebcam.Core.Protocol;
+using PhoneWebcam.Core.Security;
 using Xunit;
 
-namespace IPhoneWebcam.Core.Tests;
+namespace PhoneWebcam.Core.Tests;
 
 /// <summary>
 /// Pins the shared cross-language vectors (tests/protocol-vectors/vectors.json).

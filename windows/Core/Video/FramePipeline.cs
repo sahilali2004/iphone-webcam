@@ -1,7 +1,7 @@
-using IPhoneWebcam.Core.Diagnostics;
-using IPhoneWebcam.Core.Protocol;
+using PhoneWebcam.Core.Diagnostics;
+using PhoneWebcam.Core.Protocol;
 
-namespace IPhoneWebcam.Core.Video;
+namespace PhoneWebcam.Core.Video;
 
 /// <summary>
 /// Latest-frame-wins decode stage. <see cref="Submit"/> never blocks: if the decoder is busy,

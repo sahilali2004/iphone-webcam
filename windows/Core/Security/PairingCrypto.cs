@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace IPhoneWebcam.Core.Security;
+namespace PhoneWebcam.Core.Security;
 
 /// <summary>Pairing and authentication primitives. See docs/protocol.md §4.1.</summary>
 public static class PairingCrypto

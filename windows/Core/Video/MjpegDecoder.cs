@@ -1,10 +1,10 @@
 using System.Buffers;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using IPhoneWebcam.Core.Protocol;
-using IPhoneWebcam.Core.Timing;
+using PhoneWebcam.Core.Protocol;
+using PhoneWebcam.Core.Timing;
 
-namespace IPhoneWebcam.Core.Video;
+namespace PhoneWebcam.Core.Video;
 
 /// <summary>
 /// JPEG → BGR32 via WIC (through WPF imaging). Simple and reliable for V1.

@@ -1,4 +1,4 @@
-namespace IPhoneWebcam.Core.Protocol;
+namespace PhoneWebcam.Core.Protocol;
 
 /// <summary>Wire message types. See docs/protocol.md §3. Never repurpose an ID.</summary>
 public enum MessageType : byte

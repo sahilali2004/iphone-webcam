@@ -5,14 +5,14 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
-using IPhoneWebcam.Core.Diagnostics;
-using IPhoneWebcam.Core.Protocol;
-using IPhoneWebcam.Core.Security;
-using IPhoneWebcam.Core.Session;
-using IPhoneWebcam.Core.Transport;
-using IPhoneWebcam.Core.Video;
+using PhoneWebcam.Core.Diagnostics;
+using PhoneWebcam.Core.Protocol;
+using PhoneWebcam.Core.Security;
+using PhoneWebcam.Core.Session;
+using PhoneWebcam.Core.Transport;
+using PhoneWebcam.Core.Video;
 
-namespace IPhoneWebcam.App.ViewModels;
+namespace PhoneWebcam.App.ViewModels;
 
 public enum Tally
 {
@@ -22,7 +22,7 @@ public enum Tally
 }
 
 /// <summary>
-/// Phase 3 receiver: connect to an iPhone (or TestSender) by address, pair, show the live feed and stats,
+/// Phase 3 receiver: connect to a phone (or TestSender) by address, pair, show the live feed and stats,
 /// and reconnect automatically. Device discovery and the virtual camera arrive in later phases.
 /// </summary>
 public sealed class MainViewModel : ObservableObject, IDisposable
@@ -45,8 +45,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private string _port = DeviceEndpoint.DefaultPort.ToString();
     private Tally _tally = Tally.Idle;
     private string _status = "Not connected";
-    private string _statusDetail = "Enter the iPhone's address, then connect.";
-    private string _deviceName = "No iPhone";
+    private string _statusDetail = "Enter the phone's address, then connect.";
+    private string _deviceName = "No phone";
     private string _connectionText = "—";
     private string _resolutionText = "—";
     private string _fpsText = "—";
@@ -141,7 +141,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
-        // Tell the iPhone this was deliberate so it doesn't treat it as a dropped link. Bounded so closing never hangs.
+        // Tell the phone this was deliberate so it doesn't treat it as a dropped link. Bounded so closing never hangs.
         _session?.DisconnectAsync("app_closed").Wait(TimeSpan.FromMilliseconds(300));
         _connectCts?.Cancel();
         _pipeline.Dispose();
@@ -183,8 +183,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 AttachSession(session, endpoint);
                 await session.RunAsync(ct);
 
-                // Peer closed gracefully (user stopped the iPhone app): don't hammer it with retries.
-                SetStatus(Tally.Idle, "iPhone disconnected", "Connect again when the iPhone app is ready.");
+                // Peer closed gracefully (user stopped the phone app): don't hammer it with retries.
+                SetStatus(Tally.Idle, "Phone disconnected", "Connect again when the phone app is ready.");
                 break;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -194,7 +194,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             catch (Exception ex)
             {
                 Log.Warn($"Connection to {endpoint} failed: {ex.GetType().Name}: {ex.Message}");
-                SetStatus(Tally.Busy, "Waiting for iPhone", Explain(ex, endpoint));
+                SetStatus(Tally.Busy, "Waiting for phone", Explain(ex, endpoint));
             }
             finally
             {
@@ -216,7 +216,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             IsActive = false;
             _statsTimer.Stop();
             if (Tally != Tally.Idle)
-                SetStatus(Tally.Idle, "Not connected", "Enter the iPhone's address, then connect.");
+                SetStatus(Tally.Idle, "Not connected", "Enter the phone's address, then connect.");
         });
     }
 
@@ -234,7 +234,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             PairingCode = "";
             PairingError = null;
             ShowPairing = true;
-            SetStatus(Tally.Busy, "Pair this PC", "Type the 6-digit code shown on the iPhone.");
+            SetStatus(Tally.Busy, "Pair this PC", "Type the 6-digit code shown on the phone.");
         });
         session.PairingFailed += reason => Ui(() => PairingError = reason);
         session.StateChanged += state => Ui(() =>
@@ -243,7 +243,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             {
                 case SessionState.Authorized:
                     ShowPairing = false;
-                    SetStatus(Tally.Busy, "Connected", "Starting the camera on the iPhone.");
+                    SetStatus(Tally.Busy, "Connected", "Starting the camera on the phone.");
                     break;
                 case SessionState.Streaming:
                     ShowPairing = false;
@@ -254,7 +254,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         session.StreamStateChanged += state => Ui(() =>
         {
             if (state.State == StreamStates.Paused)
-                SetStatus(Tally.Busy, "Paused on iPhone", state.Reason ?? "Bring the iPhone app to the foreground to resume.");
+                SetStatus(Tally.Busy, "Paused on phone", state.Reason ?? "Bring the phone app to the foreground to resume.");
         });
     }
 
@@ -265,7 +265,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             ShowPairing = false;
             Preview = null;
-            DeviceName = "No iPhone";
+            DeviceName = "No phone";
             ConnectionText = ResolutionText = FpsText = LatencyText = BitrateText = DropsText = "—";
         });
     }
@@ -289,14 +289,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private static string Explain(Exception ex, DeviceEndpoint endpoint) => ex switch
     {
         SocketException { SocketErrorCode: SocketError.ConnectionRefused } =>
-            $"Nothing is accepting connections at {endpoint.Host}:{endpoint.Port}. Open iPhone Webcam on the iPhone and keep it in the foreground.",
+            $"Nothing is accepting connections at {endpoint.Host}:{endpoint.Port}. Open Phone Webcam on the phone and keep it in the foreground.",
         SocketException { SocketErrorCode: SocketError.HostUnreachable or SocketError.NetworkUnreachable } =>
-            $"{endpoint.Host} can't be reached. Check the PC and iPhone are on the same network.",
+            $"{endpoint.Host} can't be reached. Check the PC and phone are on the same network.",
         OperationCanceledException or TimeoutException =>
-            "The iPhone stopped responding. Unlock it and keep iPhone Webcam open.",
+            "The phone stopped responding. Unlock it and keep Phone Webcam open.",
         InvalidOperationException => ex.Message,
         EndOfStreamException or IOException => "The connection dropped. Retrying.",
-        ProtocolException => "The iPhone app sent data this version doesn't understand. Update both apps.",
+        ProtocolException => "The phone app sent data this version doesn't understand. Update both apps.",
         _ => "Connection failed. Retrying.",
     };
 

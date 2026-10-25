@@ -1,4 +1,4 @@
-namespace IPhoneWebcam.Core.Transport;
+namespace PhoneWebcam.Core.Transport;
 
 public enum TransportKind
 {
@@ -6,7 +6,7 @@ public enum TransportKind
     Usb,
 }
 
-/// <summary>Where to reach an iPhone. Wi-Fi uses Host/Port; USB uses UsbDeviceId (usbmuxd DeviceID).</summary>
+/// <summary>Where to reach a phone. Wi-Fi uses Host/Port; USB uses UsbDeviceId (usbmuxd DeviceID).</summary>
 public sealed record DeviceEndpoint(TransportKind Kind, string DisplayName, string? Host = null, int Port = DeviceEndpoint.DefaultPort, int? UsbDeviceId = null)
 {
     public const int DefaultPort = 47809;
@@ -14,7 +14,7 @@ public sealed record DeviceEndpoint(TransportKind Kind, string DisplayName, stri
     public override string ToString() => Kind == TransportKind.Wifi ? $"{DisplayName} ({Host}:{Port})" : $"{DisplayName} (USB)";
 }
 
-/// <summary>Produces a connected byte stream to the iPhone app. Everything above this is transport-agnostic.</summary>
+/// <summary>Produces a connected byte stream to the phone app. Everything above this is transport-agnostic.</summary>
 public interface ITransport
 {
     TransportKind Kind { get; }

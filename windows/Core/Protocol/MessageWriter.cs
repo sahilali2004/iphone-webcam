@@ -2,7 +2,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.Text.Json;
 
-namespace IPhoneWebcam.Core.Protocol;
+namespace PhoneWebcam.Core.Protocol;
 
 /// <summary>
 /// Writes framed messages. Thread-safe: each message is written atomically, so control

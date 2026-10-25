@@ -4,10 +4,10 @@ using System.Threading.Channels;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using IPhoneWebcam.Core.Diagnostics;
-using IPhoneWebcam.Core.Timing;
+using PhoneWebcam.Core.Diagnostics;
+using PhoneWebcam.Core.Timing;
 
-namespace IPhoneWebcam.TestSender;
+namespace PhoneWebcam.TestSender;
 
 /// <param name="Sequence">Capture counter; gaps mean frames the source produced but nobody consumed.</param>
 /// <param name="CapturedUs">Monotonic capture time (µs).</param>

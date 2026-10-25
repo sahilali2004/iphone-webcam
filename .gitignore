@@ -16,3 +16,11 @@ xcuserdata/
 ios/iPhoneWebcam/Info.plist
 ios/build/
 ios/IWCore/.build/
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/.kotlin/
+*.apk

@@ -1,6 +1,6 @@
-using IPhoneWebcam.Core.Protocol;
+using PhoneWebcam.Core.Protocol;
 
-namespace IPhoneWebcam.Core.Video;
+namespace PhoneWebcam.Core.Video;
 
 /// <summary>Decodes one codec. Called from a single decode thread; implementations need not be thread-safe.</summary>
 public interface IVideoDecoder : IDisposable

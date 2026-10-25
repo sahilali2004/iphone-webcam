@@ -1,12 +1,12 @@
 using System.Net;
-using IPhoneWebcam.Core.Protocol;
-using IPhoneWebcam.Core.Security;
-using IPhoneWebcam.Core.Session;
-using IPhoneWebcam.Core.Timing;
-using IPhoneWebcam.Core.Transport;
+using PhoneWebcam.Core.Protocol;
+using PhoneWebcam.Core.Security;
+using PhoneWebcam.Core.Session;
+using PhoneWebcam.Core.Timing;
+using PhoneWebcam.Core.Transport;
 using Xunit;
 
-namespace IPhoneWebcam.Core.Tests;
+namespace PhoneWebcam.Core.Tests;
 
 public class PairingCryptoTests
 {
@@ -47,7 +47,7 @@ public class PairingCryptoTests
     [Fact]
     public void DpapiStore_PersistsPcIdAndKeys()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "iphonewebcam-test-" + Guid.NewGuid());
+        var dir = Path.Combine(Path.GetTempPath(), "phonewebcam-test-" + Guid.NewGuid());
         try
         {
             var store = new DpapiPairingStore(dir);

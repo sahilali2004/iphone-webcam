@@ -1,18 +1,18 @@
 using System.Diagnostics;
 using System.Net.Sockets;
-using IPhoneWebcam.Core.Protocol;
-using IPhoneWebcam.Core.Security;
-using IPhoneWebcam.Core.Session;
-using IPhoneWebcam.Core.Timing;
-using IPhoneWebcam.Core.Transport;
-using IPhoneWebcam.Core.Video;
-using IPhoneWebcam.TestSender;
+using PhoneWebcam.Core.Protocol;
+using PhoneWebcam.Core.Security;
+using PhoneWebcam.Core.Session;
+using PhoneWebcam.Core.Timing;
+using PhoneWebcam.Core.Transport;
+using PhoneWebcam.Core.Video;
+using PhoneWebcam.TestSender;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace IPhoneWebcam.Core.Tests;
+namespace PhoneWebcam.Core.Tests;
 
-/// <summary>Fake iPhone ⇄ PhoneSession ⇄ FramePipeline over real loopback TCP.</summary>
+/// <summary>Fake phone ⇄ PhoneSession ⇄ FramePipeline over real loopback TCP.</summary>
 public sealed class EndToEndTests(ITestOutputHelper output) : IDisposable
 {
     private readonly CancellationTokenSource _cts = new(TimeSpan.FromSeconds(60));
@@ -87,11 +87,11 @@ public sealed class EndToEndTests(ITestOutputHelper output) : IDisposable
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
     }
 
-    /// <summary>Long-running stability check. Runs only when IPHONEWEBCAM_SOAK_SECONDS is set.</summary>
+    /// <summary>Long-running stability check. Runs only when PHONEWEBCAM_SOAK_SECONDS is set.</summary>
     [Fact]
     public async Task Soak()
     {
-        if (!int.TryParse(Environment.GetEnvironmentVariable("IPHONEWEBCAM_SOAK_SECONDS"), out var seconds))
+        if (!int.TryParse(Environment.GetEnvironmentVariable("PHONEWEBCAM_SOAK_SECONDS"), out var seconds))
             return;
 
         StartServer();

@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 
-namespace IPhoneWebcam.App.ViewModels;
+namespace PhoneWebcam.App.ViewModels;
 
 public abstract class ObservableObject : INotifyPropertyChanged
 {

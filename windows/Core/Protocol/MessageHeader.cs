@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
 
-namespace IPhoneWebcam.Core.Protocol;
+namespace PhoneWebcam.Core.Protocol;
 
 public sealed class ProtocolException(string message) : Exception(message);
 

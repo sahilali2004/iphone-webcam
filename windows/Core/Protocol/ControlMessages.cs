@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace IPhoneWebcam.Core.Protocol;
+namespace PhoneWebcam.Core.Protocol;
 
 /// <summary>JSON payloads of control messages. Field names are camelCase on the wire.</summary>
 public static class ProtocolJson

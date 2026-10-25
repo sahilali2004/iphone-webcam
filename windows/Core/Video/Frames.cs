@@ -1,7 +1,7 @@
 using System.Buffers;
-using IPhoneWebcam.Core.Protocol;
+using PhoneWebcam.Core.Protocol;
 
-namespace IPhoneWebcam.Core.Video;
+namespace PhoneWebcam.Core.Video;
 
 /// <summary>A compressed frame as received. Owns the underlying message buffer.</summary>
 public sealed class EncodedFrame(VideoFrameHeader header, Message message, long receivedUs) : IDisposable

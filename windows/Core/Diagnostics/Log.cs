@@ -1,4 +1,4 @@
-namespace IPhoneWebcam.Core.Diagnostics;
+namespace PhoneWebcam.Core.Diagnostics;
 
 public enum LogLevel
 {

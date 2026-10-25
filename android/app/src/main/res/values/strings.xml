@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Phone Webcam</string>
+
+    <string name="camera_off">Camera off</string>
+    <string name="camera_off_detail">Start the camera, then connect from Phone Webcam on your PC.</string>
+
+    <string name="status_off">Not connected</string>
+    <string name="status_waiting">Waiting for PC</string>
+    <string name="status_pairing">Pairing</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_live">Live</string>
+    <string name="detail_off">Camera is off</string>
+    <string name="detail_waiting">Open Phone Webcam on your PC and connect</string>
+    <string name="detail_pairing">Type the code on your PC</string>
+    <string name="detail_connected">Connected to %1$s</string>
+
+    <string name="pair_title">Pair with your PC</string>
+    <string name="pair_hint">Type this code in Phone Webcam on the PC.</string>
+    <string name="pairing_code_format">%1$s %2$s</string>
+
+    <string name="camera_rear">Rear</string>
+    <string name="camera_front">Front</string>
+    <string name="res_720">720p</string>
+    <string name="res_1080">1080p</string>
+    <string name="fps_default">30 fps</string>
+    <string name="fps_value">%1$.0f fps</string>
+    <string name="torch">Torch</string>
+
+    <string name="start_camera">Start camera</string>
+    <string name="stop_camera">Stop camera</string>
+    <string name="connect_hint">Wi-Fi: connect your PC to %1$s:%2$d\nUSB: run scripts\\android-usb.ps1, then connect to 127.0.0.1</string>
+    <string name="no_wifi">(no Wi-Fi)</string>
+
+    <string name="paused_background">Phone Webcam is in the background. Open it on the tablet to resume.</string>
+    <string name="error_camera_permission">Camera access is off. Allow it in Settings › Apps › Phone Webcam › Permissions.</string>
+    <string name="error_camera_start">Couldn\'t start the camera: %1$s</string>
+    <string name="error_network">Network unavailable: %1$s</string>
+</resources>

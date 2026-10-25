@@ -1,9 +1,9 @@
 using System.Net;
-using IPhoneWebcam.Core.Diagnostics;
-using IPhoneWebcam.TestSender;
+using PhoneWebcam.Core.Diagnostics;
+using PhoneWebcam.TestSender;
 
-// Fake iPhone for Phase 3: speaks the real wire protocol so the Windows receiver can be tested without a phone.
-//   IPhoneWebcam.TestSender [--port 47809] [--lan] [--ffmpeg]
+// Fake phone for Phase 3: speaks the real wire protocol so the Windows receiver can be tested without a phone.
+//   PhoneWebcam.TestSender [--port 47809] [--lan] [--ffmpeg]
 //     --lan     listen on all interfaces (default: loopback only)
 //     --ffmpeg  use ffmpeg testsrc2 (realistic MJPEG sizes) instead of the built-in pattern
 

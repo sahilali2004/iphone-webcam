@@ -1,8 +1,8 @@
 using System.ComponentModel;
 using System.Windows;
-using IPhoneWebcam.App.ViewModels;
+using PhoneWebcam.App.ViewModels;
 
-namespace IPhoneWebcam.App;
+namespace PhoneWebcam.App;
 
 public partial class MainWindow : Window
 {

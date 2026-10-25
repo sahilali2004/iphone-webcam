@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <RootNamespace>IPhoneWebcam.TestSender</RootNamespace>
-    <AssemblyName>IPhoneWebcam.TestSender</AssemblyName>
+    <RootNamespace>PhoneWebcam.TestSender</RootNamespace>
+    <AssemblyName>PhoneWebcam.TestSender</AssemblyName>
     <UseWPF>true</UseWPF>
   </PropertyGroup>
   <ItemGroup>

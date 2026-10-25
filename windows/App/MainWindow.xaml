@@ -1,9 +1,9 @@
-<Window x:Class="IPhoneWebcam.App.MainWindow"
+<Window x:Class="PhoneWebcam.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="clr-namespace:IPhoneWebcam.App.ViewModels"
-        xmlns:local="clr-namespace:IPhoneWebcam.App"
-        Title="iPhone Webcam"
+        xmlns:vm="clr-namespace:PhoneWebcam.App.ViewModels"
+        xmlns:local="clr-namespace:PhoneWebcam.App"
+        Title="Phone Webcam"
         Width="1080" Height="600" MinWidth="760" MinHeight="460"
         FontFamily="{StaticResource UiFont}"
         WindowStartupLocation="CenterScreen">
@@ -72,8 +72,8 @@
                         CornerRadius="8" Padding="24,20" MinWidth="320"
                         HorizontalAlignment="Center" VerticalAlignment="Center">
                     <StackPanel>
-                        <TextBlock Text="Pair with this iPhone" FontFamily="{StaticResource DisplayFont}" FontSize="20" />
-                        <TextBlock Text="Type the 6-digit code shown on the iPhone." Style="{StaticResource Caption}" Margin="0,4,0,14" FontSize="13" />
+                        <TextBlock Text="Pair with this phone" FontFamily="{StaticResource DisplayFont}" FontSize="20" />
+                        <TextBlock Text="Type the 6-digit code shown on the phone." Style="{StaticResource Caption}" Margin="0,4,0,14" FontSize="13" />
                         <TextBox x:Name="PairingCodeBox" Text="{Binding PairingCode, UpdateSourceTrigger=PropertyChanged}"
                                  FontSize="28" MaxLength="6" TextAlignment="Center"
                                  Typography.NumeralAlignment="Tabular" InputScope="Number" />
@@ -150,7 +150,7 @@
                     <TextBlock Text="{Binding FpsText}" Style="{StaticResource Value}" />
                 </StackPanel>
                 <StackPanel Grid.Row="2" Grid.Column="0">
-                    <TextBlock Text="Latency" Style="{StaticResource Caption}" ToolTip="Capture on iPhone to decoded on PC" />
+                    <TextBlock Text="Latency" Style="{StaticResource Caption}" ToolTip="Capture on phone to decoded on PC" />
                     <TextBlock Text="{Binding LatencyText}" Style="{StaticResource Value}" />
                 </StackPanel>
                 <StackPanel Grid.Row="2" Grid.Column="1">
@@ -176,7 +176,7 @@
                         <ColumnDefinition Width="76" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0">
-                        <TextBlock Text="iPhone address" Style="{StaticResource Caption}" />
+                        <TextBlock Text="Phone address" Style="{StaticResource Caption}" />
                         <TextBox Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsActive, Converter={StaticResource Inverse}}" x:Name="HostBox" />
                     </StackPanel>
                     <StackPanel Grid.Column="2">

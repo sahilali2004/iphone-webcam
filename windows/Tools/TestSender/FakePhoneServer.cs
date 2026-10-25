@@ -1,12 +1,12 @@
 using System.Net;
 using System.Net.Sockets;
-using IPhoneWebcam.Core.Diagnostics;
-using IPhoneWebcam.Core.Protocol;
-using IPhoneWebcam.Core.Security;
-using IPhoneWebcam.Core.Timing;
-using IPhoneWebcam.Core.Transport;
+using PhoneWebcam.Core.Diagnostics;
+using PhoneWebcam.Core.Protocol;
+using PhoneWebcam.Core.Security;
+using PhoneWebcam.Core.Timing;
+using PhoneWebcam.Core.Transport;
 
-namespace IPhoneWebcam.TestSender;
+namespace PhoneWebcam.TestSender;
 
 public sealed class FakePhoneOptions
 {
@@ -22,7 +22,7 @@ public sealed class FakePhoneOptions
 }
 
 /// <summary>
-/// Stand-in for the iPhone app: implements the iPhone side of docs/protocol.md
+/// Stand-in for the phone app: implements the phone side of docs/protocol.md
 /// (listener, pairing, auth, START/STOP, PING/PONG, paced VIDEO_FRAMEs with latest-frame-wins).
 /// </summary>
 public sealed class FakePhoneServer(FakePhoneOptions options) : IDisposable
@@ -47,7 +47,7 @@ public sealed class FakePhoneServer(FakePhoneOptions options) : IDisposable
     public async Task RunAsync(CancellationToken ct)
     {
         Start();
-        Log.Info($"Fake iPhone listening on {_options.Bind}:{Port}");
+        Log.Info($"Fake phone listening on {_options.Bind}:{Port}");
         try
         {
             while (!ct.IsCancellationRequested)

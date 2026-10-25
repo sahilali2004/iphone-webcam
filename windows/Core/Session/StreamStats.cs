@@ -1,7 +1,7 @@
-using IPhoneWebcam.Core.Protocol;
-using IPhoneWebcam.Core.Timing;
+using PhoneWebcam.Core.Protocol;
+using PhoneWebcam.Core.Timing;
 
-namespace IPhoneWebcam.Core.Session;
+namespace PhoneWebcam.Core.Session;
 
 public sealed record StatsSnapshot(
     double ReceiveFps,

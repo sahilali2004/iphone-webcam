@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
 using System.Text.Json;
-using IPhoneWebcam.Core.Diagnostics;
+using PhoneWebcam.Core.Diagnostics;
 
-namespace IPhoneWebcam.Core.Security;
+namespace PhoneWebcam.Core.Security;
 
 public interface IPairingStore
 {
@@ -41,19 +41,19 @@ public sealed class InMemoryPairingStore(string? pcId = null) : IPairingStore
     }
 }
 
-/// <summary>Per-user store in %LOCALAPPDATA%\iPhoneWebcam\pairings.json; keys protected with DPAPI (CurrentUser).</summary>
+/// <summary>Per-user store in %LOCALAPPDATA%\PhoneWebcam\pairings.json; keys protected with DPAPI (CurrentUser).</summary>
 public sealed class DpapiPairingStore : IPairingStore
 {
     private sealed record FileModel(string PcId, Dictionary<string, string> Keys);
 
-    private static readonly byte[] Entropy = "iPhoneWebcam.pairing.v1"u8.ToArray();
+    private static readonly byte[] Entropy = "PhoneWebcam.pairing.v1"u8.ToArray();
     private readonly string _path;
     private readonly object _gate = new();
     private readonly FileModel _model;
 
     public DpapiPairingStore(string? directory = null)
     {
-        directory ??= Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "iPhoneWebcam");
+        directory ??= Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PhoneWebcam");
         Directory.CreateDirectory(directory);
         _path = Path.Combine(directory, "pairings.json");
         _model = Load(_path) ?? new FileModel(Guid.NewGuid().ToString(), []);

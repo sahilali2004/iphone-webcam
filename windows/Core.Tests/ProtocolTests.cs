@@ -1,7 +1,7 @@
-using IPhoneWebcam.Core.Protocol;
+using PhoneWebcam.Core.Protocol;
 using Xunit;
 
-namespace IPhoneWebcam.Core.Tests;
+namespace PhoneWebcam.Core.Tests;
 
 public class ProtocolTests
 {

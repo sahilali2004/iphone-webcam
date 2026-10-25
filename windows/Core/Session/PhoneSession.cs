@@ -1,11 +1,11 @@
 using System.Reflection;
-using IPhoneWebcam.Core.Diagnostics;
-using IPhoneWebcam.Core.Protocol;
-using IPhoneWebcam.Core.Security;
-using IPhoneWebcam.Core.Timing;
-using IPhoneWebcam.Core.Video;
+using PhoneWebcam.Core.Diagnostics;
+using PhoneWebcam.Core.Protocol;
+using PhoneWebcam.Core.Security;
+using PhoneWebcam.Core.Timing;
+using PhoneWebcam.Core.Video;
 
-namespace IPhoneWebcam.Core.Session;
+namespace PhoneWebcam.Core.Session;
 
 public enum SessionState
 {
@@ -32,7 +32,7 @@ public sealed class SessionOptions
 }
 
 /// <summary>
-/// PC side of one connection to the iPhone app: handshake, pairing/auth, keepalive, clock sync,
+/// PC side of one connection to the phone app: handshake, pairing/auth, keepalive, clock sync,
 /// and demultiplexing of control messages and video frames. Transport-agnostic (takes any Stream).
 /// </summary>
 public sealed class PhoneSession : IAsyncDisposable
@@ -67,7 +67,7 @@ public sealed class PhoneSession : IAsyncDisposable
 
     public event Action<DeviceInfo>? DeviceInfoReceived;
 
-    /// <summary>The iPhone is showing a 6-digit code; call <see cref="SubmitPairingCodeAsync"/>.</summary>
+    /// <summary>The phone is showing a 6-digit code; call <see cref="SubmitPairingCodeAsync"/>.</summary>
     public event Action? PairingCodeRequired;
 
     public event Action<string>? PairingFailed;
@@ -225,12 +225,12 @@ public sealed class PhoneSession : IAsyncDisposable
 
                 case MessageType.Error:
                     var error = ProtocolJson.Deserialize<ErrorMessage>(message);
-                    Log.Error($"iPhone reported error {error.Code}: {error.Message}");
+                    Log.Error($"Phone reported error {error.Code}: {error.Message}");
                     RemoteError?.Invoke(error);
                     break;
 
                 case MessageType.Disconnect:
-                    Log.Info($"iPhone disconnected: {ProtocolJson.Deserialize<Disconnect>(message).Reason}");
+                    Log.Info($"Phone disconnected: {ProtocolJson.Deserialize<Disconnect>(message).Reason}");
                     return false;
 
                 default:
@@ -266,7 +266,7 @@ public sealed class PhoneSession : IAsyncDisposable
 
         if (key is not null)
         {
-            Log.Info("iPhone no longer recognises this PC; re-pairing");
+            Log.Info("Phone no longer recognises this PC; re-pairing");
             _pairings.RemoveKey(info.DeviceId);
         }
         await RequestPairingAsync(ct).ConfigureAwait(false);
@@ -279,7 +279,7 @@ public sealed class PhoneSession : IAsyncDisposable
             if (_pendingKey is not null && Device is not null)
             {
                 _pairings.SaveKey(Device.DeviceId, _pendingKey);
-                Log.Info("Paired with iPhone");
+                Log.Info("Paired with phone");
             }
             _pendingKey = null;
             Log.Info("Authorized");
@@ -333,7 +333,7 @@ public sealed class PhoneSession : IAsyncDisposable
             {
                 if (MonoClock.NowUs - _lastInboundUs > timeoutUs)
                 {
-                    _failure = new TimeoutException($"No data from iPhone for {_options.InactivityTimeout.TotalSeconds:0} s");
+                    _failure = new TimeoutException($"No data from phone for {_options.InactivityTimeout.TotalSeconds:0} s");
                     _cts?.Cancel();
                     return;
                 }

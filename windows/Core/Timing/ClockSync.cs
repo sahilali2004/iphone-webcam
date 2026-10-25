@@ -1,4 +1,4 @@
-namespace IPhoneWebcam.Core.Timing;
+namespace PhoneWebcam.Core.Timing;
 
 /// <summary>
 /// NTP-style estimate of (remoteClock − localClock) from PING/PONG samples.

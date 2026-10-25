@@ -1,16 +1,16 @@
 using System.IO;
 using System.Windows;
-using IPhoneWebcam.Core.Diagnostics;
+using PhoneWebcam.Core.Diagnostics;
 
-namespace IPhoneWebcam.App;
+namespace PhoneWebcam.App;
 
 public partial class App : Application
 {
     protected override void OnStartup(StartupEventArgs e)
     {
-        var logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "iPhoneWebcam", "logs");
+        var logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PhoneWebcam", "logs");
         Log.EnableFile(Path.Combine(logDir, "app.log"));
-        Log.Info("iPhone Webcam started");
+        Log.Info("Phone Webcam started");
         base.OnStartup(e);
     }
 }

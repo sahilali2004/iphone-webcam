@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <RootNamespace>IPhoneWebcam.Core.Tests</RootNamespace>
-    <AssemblyName>IPhoneWebcam.Core.Tests</AssemblyName>
+    <RootNamespace>PhoneWebcam.Core.Tests</RootNamespace>
+    <AssemblyName>PhoneWebcam.Core.Tests</AssemblyName>
     <UseWPF>true</UseWPF>
     <IsPackable>false</IsPackable>
   </PropertyGroup>

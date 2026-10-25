@@ -1,6 +1,6 @@
 using System.Buffers;
 
-namespace IPhoneWebcam.Core.Protocol;
+namespace PhoneWebcam.Core.Protocol;
 
 /// <summary>
 /// A received message. The payload is rented from <see cref="ArrayPool{T}.Shared"/>;

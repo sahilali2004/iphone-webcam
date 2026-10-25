@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace IPhoneWebcam.Core.Timing;
+namespace PhoneWebcam.Core.Timing;
 
 /// <summary>Monotonic microsecond clock (QPC). Split division avoids overflow for long uptimes.</summary>
 public static class MonoClock

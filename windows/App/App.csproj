@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <RootNamespace>IPhoneWebcam.App</RootNamespace>
-    <AssemblyName>iPhoneWebcam</AssemblyName>
+    <RootNamespace>PhoneWebcam.App</RootNamespace>
+    <AssemblyName>PhoneWebcam</AssemblyName>
     <UseWPF>true</UseWPF>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- Fluent ThemeMode is flagged experimental. -->
