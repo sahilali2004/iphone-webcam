@@ -21,6 +21,16 @@ Automatic. The PC app lists Android devices on USB (adb) and phones that answer 
 | Rear 720p | 30.0 | 74 ms | 5.4 Mbps | 0 |
 | Front 720p | 30.2 | 79 ms | 17.4 Mbps | 0 |
 
+### Wi-Fi (same tablet, home network, 2026-10-25)
+
+| Setting | FPS | Capture→PC latency avg / max | Bitrate |
+|---|---|---|---|
+| Rear 1080p | 29.0 | 119 / 165 ms | 25.7 Mbps |
+| Rear 720p | 30.0 | 89 / 117 ms | 8.6 Mbps |
+| Front 720p | 30.1 | 96 / 124 ms | 11.4 Mbps |
+
+Without a Wi-Fi lock, Android power-save raised the round trip to ~130 ms (latency 135 ms, 38 dropped frames at 1080p). The app now holds `WIFI_MODE_FULL_LOW_LATENCY` while the camera runs, which brings the round trip down to ~5–15 ms. Use 720p on Wi-Fi; 1080p JPEG (~25 Mbps) is near this tablet's Wi-Fi limit, which is the case for the planned H.264 option.
+
 JPEG encode (YuvImage, CPU) takes ~27 ms at 1080p on this tablet, so encode of frame N+1 overlaps the send of frame N (FrameGate allows 2 in flight).
 
 ## Code map (`android/app/src/main/java/local/phonewebcam`)

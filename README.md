@@ -40,7 +40,7 @@ On the phone: **Settings › About phone › Software information** → tap **Bu
    - **OBS:** Sources › + › Video Capture Device › Device: Phone Webcam (Windows Virtual Camera).
    - **Windows Camera app:** the switch-camera button.
 
-**Microphone (optional):** tick **Use phone microphone**. Windows can't create a virtual microphone without a driver, so the phone's audio goes into a virtual audio cable. With the free **VB-CABLE** installed, pick **CABLE Output (VB-Audio Virtual Cable)** as the microphone in your call app; the dashboard names the right one. See [docs/microphone.md](docs/microphone.md).
+**Microphone (optional):** tick **Use phone microphone**. Windows can't create a virtual microphone without a driver, so the phone's audio goes into a virtual audio cable. With **VB-CABLE** installed (free; see [docs/microphone.md](docs/microphone.md) for the 3-step install), pick **CABLE Output (VB-Audio Virtual Cable)** as the microphone in your call app; the dashboard names the right one. See [docs/microphone.md](docs/microphone.md).
 
 Rear/front camera and 720p/1080p can be changed on the PC (or the phone) while live. While Phone Webcam runs on the PC but no phone is streaming, apps see a "Waiting for the phone" card instead of a frozen image.
 
@@ -53,7 +53,7 @@ Rear/front camera and 720p/1080p can be changed on the PC (or the phone) while l
 | Pairing code rejected | Type the code currently on the phone. After 3 wrong tries the phone refuses pairing for 30 seconds. |
 | Camera missing in other apps | Phone Webcam must be running on the PC. If the panel says the camera isn't installed, rerun `Install.cmd`. If it says Windows blocked camera access: **Settings › Privacy & security › Camera › Let desktop apps access your camera**. |
 | App shows the camera but it's black | Usually the phone is face-down or covered. Check the preview in the Phone Webcam window. |
-| Stutters on Wi-Fi | Use USB, or switch to 720p. |
+| Stutters on Wi-Fi | Use USB, or switch to 720p (measured: 720p at 30 fps / ~90 ms on Wi-Fi; 1080p ~120 ms). |
 | Microphone sounds distorted or wrong-pitch | The selected cable's two sides use different formats (the dashboard says so). Use VB-CABLE, or set both sides to the same format in *Sound settings › More sound settings*. |
 | Microphone missing in call apps | Install VB-CABLE, select it under **Use phone microphone**, and pick the microphone the dashboard names. |
 

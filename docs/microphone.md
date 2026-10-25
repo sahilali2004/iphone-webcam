@@ -14,11 +14,17 @@ Phone mic ─PCM over USB/Wi-Fi─► Phone Webcam ─WASAPI─► "CABLE Input"
 
 | Cable | Notes |
 |---|---|
-| **VB-CABLE** (free, vb-audio.com/Cable) | Recommended. Signed driver; Phone Webcam detects it and names the microphone to pick. |
+| **VB-CABLE** (donationware, vb-audio.com/Cable) | Recommended. Driver catalog signed by Microsoft (Hardware Compatibility Publisher); Phone Webcam detects it and names the microphone to pick. Its licence forbids bundling it in another installer, so install it yourself (below). |
 | Steam Streaming Microphone | Installed by Steam. Detected, but only works if both of its sides use the same format. On the dev PC its playback side was 192 kHz and its recording side 48 kHz, which garbles audio; the app warns about this. |
 | VoiceMeeter | Detected (VoiceMeeter Input → Output). |
 
 Without a cable, the audio can still be played on speakers or headphones (for testing), but other apps can't use it as a microphone.
+
+## Installing VB-CABLE
+
+1. Download `VBCABLE_Driver_Pack45.zip` from https://vb-audio.com/Cable/ and extract it.
+2. Right-click **VBCABLE_Setup_x64.exe** › **Run as administrator** › **Install Driver**, and wait for the "installation complete" message.
+3. Restart Windows. **CABLE Input** (playback) and **CABLE Output** (microphone) appear, and Phone Webcam preselects the cable.
 
 ## Using it
 

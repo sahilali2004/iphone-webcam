@@ -11,7 +11,8 @@ import org.json.JSONObject
 
 /**
  * Answers the PC's Wi-Fi discovery probe ("PWDISCOVER1" on UDP 47810) with {deviceId, name, port}.
- * Holds a multicast lock while running: some Wi-Fi drivers drop broadcast packets in power-save otherwise.
+ * While running it holds a multicast lock (some Wi-Fi drivers drop broadcasts in power-save) and a
+ * low-latency Wi-Fi lock (power-save otherwise adds ~100 ms to every round trip).
  * Only replies to private / link-local senders. See docs/protocol.md §8.
  */
 class DiscoveryResponder(context: Context, private val deviceId: String, private val name: String, private val port: Int) {
@@ -23,6 +24,7 @@ class DiscoveryResponder(context: Context, private val deviceId: String, private
 
     private val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
     private var lock: WifiManager.MulticastLock? = null
+    private var latencyLock: WifiManager.WifiLock? = null
     @Volatile private var socket: DatagramSocket? = null
 
     fun start() {
@@ -42,6 +44,13 @@ class DiscoveryResponder(context: Context, private val deviceId: String, private
             setReferenceCounted(false)
             acquire()
         }
+        // Wi-Fi power save made round trips ~130 ms on the test tablet; keep the radio awake while streaming.
+        @Suppress("DEPRECATION")
+        val mode = if (android.os.Build.VERSION.SDK_INT >= 29) WifiManager.WIFI_MODE_FULL_LOW_LATENCY else WifiManager.WIFI_MODE_FULL_HIGH_PERF
+        latencyLock = wifi.createWifiLock(mode, "PhoneWebcam.latency").apply {
+            setReferenceCounted(false)
+            acquire()
+        }
         Thread({ loop(s) }, "discovery").start()
         Log.i(TAG, "Answering discovery on UDP $DISCOVERY_PORT")
     }
@@ -51,6 +60,8 @@ class DiscoveryResponder(context: Context, private val deviceId: String, private
         socket = null
         lock?.release()
         lock = null
+        latencyLock?.release()
+        latencyLock = null
     }
 
     private fun loop(s: DatagramSocket) {
