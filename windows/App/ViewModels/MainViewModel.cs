@@ -11,6 +11,7 @@ using PhoneWebcam.Core.Security;
 using PhoneWebcam.Core.Session;
 using PhoneWebcam.Core.Transport;
 using PhoneWebcam.Core.Video;
+using PhoneWebcam.Core.VirtualCamera;
 
 namespace PhoneWebcam.App.ViewModels;
 
@@ -34,6 +35,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly ITransport _transport = new WifiTransport();
     private readonly FramePipeline _pipeline = new(new MjpegDecoder());
     private readonly DispatcherTimer _statsTimer;
+    private readonly VirtualCameraHost _virtualCamera = new();
 
     private CancellationTokenSource? _connectCts;
     private PhoneSession? _session;
@@ -59,6 +61,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private string? _pairingError;
     private string _lastLog = "";
     private WriteableBitmap? _preview;
+    private string _virtualCameraText = "Starting the Phone Webcam camera…";
 
     public MainViewModel()
     {
@@ -67,6 +70,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _pipeline.FrameDecoded += OnFrameDecoded;
         _statsTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => RefreshStats(), _dispatcher);
         Log.Written += entry => Ui(() => LastLog = entry.ToString());
+        _ = StartVirtualCameraAsync();
     }
 
     public ICommand ConnectCommand { get; }
@@ -139,12 +143,37 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public bool HasPreview => _preview is not null;
 
+    /// <summary>Whether other apps can select "Phone Webcam", in plain words.</summary>
+    public string VirtualCameraText { get => _virtualCameraText; private set => Set(ref _virtualCameraText, value); }
+
     public void Dispose()
     {
         // Tell the phone this was deliberate so it doesn't treat it as a dropped link. Bounded so closing never hangs.
         _session?.DisconnectAsync("app_closed").Wait(TimeSpan.FromMilliseconds(300));
         _connectCts?.Cancel();
         _pipeline.Dispose();
+        _virtualCamera.Dispose();
+    }
+
+    private async Task StartVirtualCameraAsync()
+    {
+        if (!VirtualCameraHost.IsInstalled)
+        {
+            VirtualCameraText = @"Camera for other apps isn't installed. Run scripts\install-vcam.ps1 as administrator.";
+            return;
+        }
+        try
+        {
+            var hr = await _virtualCamera.StartAsync();
+            VirtualCameraText = hr >= 0
+                ? "“Phone Webcam” is available in Chrome, Teams, Zoom, OBS and the Camera app."
+                : VirtualCameraHost.Explain(hr);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Virtual camera: {ex.Message}");
+            VirtualCameraText = "The camera for other apps couldn't start. See the log for details.";
+        }
     }
 
     private void ToggleConnection()

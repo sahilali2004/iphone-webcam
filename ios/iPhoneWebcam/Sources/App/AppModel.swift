@@ -177,7 +177,7 @@ final class AppModel: ObservableObject, StreamServerDelegate {
     private static func deviceInfo() -> DeviceInfoTemplate {
         DeviceInfoTemplate(
             deviceName: UIDevice.current.name,
-            osVersion: UIDevice.current.systemVersion,
+            osVersion: "iOS \(UIDevice.current.systemVersion)",
             appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0",
             cameras: CameraPosition.allCases.map { CameraInfo(id: $0.rawValue, torch: CameraManager.hasTorch($0)) },
             formats: StreamResolution.allCases.map { FormatInfo(w: $0.width, h: $0.height, fps: [30]) })

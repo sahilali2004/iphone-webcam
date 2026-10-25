@@ -2,7 +2,7 @@
 
 Personal-use utility: use an Android phone/tablet (or iPhone) camera as a real Windows webcam (listed as **Phone Webcam** in Chrome, Teams, Zoom, OBS, Windows Camera…), over USB or Wi-Fi. Everything stays local — no cloud, accounts, telemetry or recording.
 
-> Status: **Phase 4 complete with an Android device.** A Samsung Galaxy Tab streams 1080p30 over USB to the Windows receiver (≈84 ms capture→PC). The iPhone app is built by CI but parked: sideloading needs an Apple ID login that is currently failing. Next: Phase 5 (virtual camera).
+> Status: **Phase 5 complete.** A Galaxy Tab streams 1080p30 to the Windows app over USB, and Windows apps can select **Phone Webcam** as a camera (verified in Chrome and DirectShow/OBS path). For now the camera shows a test card; Phase 6 routes the phone's video into it.
 
 ## Requirements
 
@@ -22,7 +22,7 @@ ios/iPhoneWebcam/        Swift/SwiftUI app: Camera/, Streaming/, App/
 ios/IWCore/              Swift package: protocol + crypto (swift test)
 android/                 Kotlin Android app (CameraX), same protocol: see docs/android-setup.md
 windows/
-  VirtualCamera/         C++ COM media source DLL (loaded by Windows Frame Server)
+  VirtualCamera/         C++ COM media source DLL (loaded by Windows Frame Server) + vcamtest
   Core/                  C# library: transports, protocol, decoding, frame pipeline
   Core.Tests/            C# unit tests
   App/                   C# WPF companion app (UI)
@@ -56,6 +56,15 @@ Try the receiver without a phone:
 .\scripts\run-test-sender.ps1            # fake phone on 127.0.0.1:47809 (add -Ffmpeg for ffmpeg testsrc2)
 dotnet run --project windows/App          # click Connect, type the pairing code the sender prints
 ```
+
+Virtual camera (Windows 11, once per machine, admin):
+
+```powershell
+.\scripts\build-vcam.ps1      # build PhoneWebcamSource.dll
+.\scripts\install-vcam.ps1    # install + register (UAC prompt)
+```
+
+The Phone Webcam app then registers **"Phone Webcam (Windows Virtual Camera)"** while it runs. See [docs/virtual-camera.md](docs/virtual-camera.md).
 
 Logs: `%LOCALAPPDATA%\PhoneWebcam\logs\app.log`. Pairings (DPAPI-protected): `%LOCALAPPDATA%\PhoneWebcam\pairings.json`.
 

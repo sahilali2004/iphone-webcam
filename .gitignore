@@ -24,3 +24,4 @@ android/local.properties
 android/.idea/
 android/.kotlin/
 *.apk
+windows/VirtualCamera/build/

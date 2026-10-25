@@ -1,55 +1,63 @@
 # Virtual camera
 
-## API
+Status: **working** (Phase 5, 2026-10-25). Apps list it as **"Phone Webcam (Windows Virtual Camera)"**. Windows appends the suffix and it can't be removed.
 
-`MFCreateVirtualCamera` (Windows Build 22000+, `mfvirtualcamera.h`, `mfsensorgroup.lib`) registers a **software camera** backed by our COM media source. The Windows Camera Frame Server loads the source and shares it with every app, so MF, DirectShow (via Frame Server) and WinRT `MediaCapture` clients all see one device.
+## Install (once, admin)
 
-```cpp
-MFCreateVirtualCamera(
-    MFVirtualCameraType_SoftwareCameraSource,
-    MFVirtualCameraLifetime_Session,      // V1: exists while companion app runs
-    MFVirtualCameraAccess_CurrentUser,    // no admin needed at runtime
-    L"iPhone Webcam",                     // Windows appends "Windows Virtual Camera"
-    L"{CLSID-of-IPhoneWebcamSource}",
-    nullptr, 0,                           // default categories: VIDEO_CAMERA, VIDEO, CAPTURE
-    &vcam);
-vcam->Start(nullptr);
+```powershell
+.\scripts\build-vcam.ps1        # builds windows/VirtualCamera → PhoneWebcamSource.dll + vcamtest.exe
+.\scripts\install-vcam.ps1      # copies to C:\Program Files\PhoneWebcam, registers in HKLM (UAC prompt)
+.\scripts\install-vcam.ps1 -Uninstall
 ```
 
-## Process model
+Re-run `install-vcam.ps1` after rebuilding the DLL. Updating needs admin by design: the DLL runs inside a Windows service, so a user-writable copy would be a privilege-escalation hole.
 
-| Process | Account | Loads our DLL? |
+## How it works
+
+`MFCreateVirtualCamera` (Windows 11, build 22000+) registers a **software camera** backed by our COM media source. The Windows Camera Frame Server loads the source and shares it with every app: Media Foundation, WinRT `MediaCapture`, and DirectShow through the Frame Server's bridge.
+
+| Process | Account | Role |
 |---|---|---|
-| Companion app | user | yes (to call `vcam_*` exports) |
-| Frame Server (`svchost`, FrameServer) | LOCAL SERVICE, session 0 | yes — produces the frames apps receive |
-| Frame Server Monitor | LOCAL SYSTEM | yes |
-| Chrome / OBS / Teams… | user | no — they talk to Frame Server |
+| Phone Webcam app | user | Calls `PhoneWebcam_StartVirtualCamera` on start and `…Stop` on exit (session lifetime, current user, no admin needed at runtime) |
+| Frame Server (`svchost`) | LOCAL SERVICE | Loads `PhoneWebcamSource.dll`, produces the frames apps receive |
+| Chrome / OBS / Teams / Camera | user | Talk to the Frame Server, never to our DLL directly |
 
-Consequences:
-- DLL registered in **HKLM** (admin, once, by installer) and installed under `C:\Program Files\iPhoneWebcam\` (service accounts can't read the user profile).
-- Frames reach the source through named pipe `\\.\pipe\iPhoneWebcam.Frames` (app = server, DACL: user + LOCAL SERVICE + SYSTEM).
-- The source must never block the Frame Server: pipe reads happen on a worker thread; `RequestSample` always returns the latest frame or the "waiting" card immediately.
+Source layout (`windows/VirtualCamera/src`):
 
-## Media types offered
+| File | Role |
+|---|---|
+| `Activator` | What the Frame Server CoCreates; creates the media source lazily |
+| `MediaSource` | `IMFMediaSourceEx`, `IMFGetService`, `IKsControl`, `IMFSampleAllocatorControl`, sensor profile, presentation descriptor |
+| `MediaStream` | `IMFMediaStream2`; **delivery thread paced at 30 fps** by a high-resolution waitable timer (answering `RequestSample` immediately let a reader pull ~390 fps) |
+| `FrameProducer` | Draws the frame (GDI) and writes NV12 (BT.709 limited range) or RGB32 into the sample |
+| `dllmain` | COM entry points, HKLM registration, app-facing exports |
+
+Plain COM, no WIL/C++/WinRT/NuGet; the CRT is linked statically so the service needs no VC++ redistributable. The interface contract follows Microsoft's virtual-camera documentation and [smourier/VCamSample](https://github.com/smourier/VCamSample) (MIT), with two of its bugs fixed (stream index in `Start`, `=` vs `==` in `SetStreamState`).
+
+## Formats
 
 | Subtype | Sizes | FPS |
 |---|---|---|
-| NV12 | 1920×1080, 1280×720 | 30 |
+| NV12 (default) | 1920×1080, 1280×720 | 30 |
 | RGB32 | 1920×1080, 1280×720 | 30 |
+| YUY2 | added automatically by the Frame Server for DirectShow clients | 30 |
 
-If the requested size differs from the incoming iPhone frame, the app-side `FramePipeline` scales before publishing (the app tells the source which size is active through a small header in each pipe message).
+## What it shows
 
-## Interfaces to implement
+Phase 5: a test card, "Phone Webcam · Waiting for the phone…", with colour bars, a moving marker (it stops if frames freeze), resolution and clock. Phase 6 replaces it with the phone's video while a phone is streaming.
 
-`IMFMediaSourceEx` (+ `IMFMediaSource`, `IMFMediaEventGenerator`), `IMFGetService`, `IKsControl`, attribute store (`IMFAttributes`), one `IMFMediaStream2` with `IMFMediaEventQueue`. Reference: [smourier/VCamSample](https://github.com/smourier/VCamSample) and Microsoft's Windows-Camera *VirtualCamera* sample.
+## Verified (2026-10-25, Windows 11 24H2 build 26100)
+
+| Check | Result |
+|---|---|
+| `vcamtest` via Media Foundation (Frame Server path) | Found in device list; NV12 1080p **30.0 fps**, RGB32 720p **30.0 fps**; frame sizes exact; snapshot correct |
+| Chrome (`getUserMedia`, headless) | Listed, opened at 1920×1080, **30.0 fps** measured, colour-bar pixels exact |
+| DirectShow (ffmpeg `-f dshow`, the OBS/Zoom/Discord path) | Listed; captured 1080p (YUY2) frames correctly |
+| App lifecycle | Camera appears when the Phone Webcam app starts, disappears when it closes |
+| Not yet tested | Windows Camera app, Teams (known risk: some Teams builds preview virtual cameras without sending them), Zoom |
 
 ## Debugging
 
-- ETW provider for the DLL; capture with `tracelog`/WPR or the TraceSpy tool. No `OutputDebugString` from session 0.
-- After rebuilding the DLL: stop apps using the camera, `net stop FrameServer` (admin) to unload, re-register.
-
-## Known risks
-
-- Teams has been reported to preview but not transmit some virtual cameras → test early in Phase 5.
-- Camera privacy setting *"Let desktop apps access your camera"* off → `E_ACCESSDENIED`; app shows a fix-it message.
-- Windows 10 not supported by this API (DirectShow filter would be a separate, later component).
+- Trace output: `OutputDebugString` prefixed `[PhoneWebcamSource <pid>]`; view with Sysinternals DebugView (enable *Capture Global Win32*, since the Frame Server runs in session 0).
+- If the DLL is locked during reinstall: `install-vcam.ps1` stops `FrameServer`/`FrameServerMonitor` first; they restart on demand.
+- Camera privacy off (*Let desktop apps access your camera*) → start fails with `0x80070005`; the app shows the fix.

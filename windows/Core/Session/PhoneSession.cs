@@ -251,7 +251,7 @@ public sealed class PhoneSession : IAsyncDisposable
     {
         Device = info;
         _phoneNonce = Convert.FromBase64String(info.Nonce);
-        Log.Info($"Connected to {info.DeviceName} ({info.Model}, iOS {info.OsVersion}, app {info.AppVersion})");
+        Log.Info($"Connected to {info.DeviceName} ({info.Model}, {info.OsVersion}, app {info.AppVersion})");
         DeviceInfoReceived?.Invoke(info);
 
         var key = _pairings.GetKey(info.DeviceId);

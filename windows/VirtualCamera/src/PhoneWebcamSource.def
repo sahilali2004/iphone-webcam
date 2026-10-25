@@ -1,0 +1,7 @@
+EXPORTS
+    DllCanUnloadNow         PRIVATE
+    DllGetClassObject       PRIVATE
+    DllRegisterServer       PRIVATE
+    DllUnregisterServer     PRIVATE
+    PhoneWebcam_StartVirtualCamera
+    PhoneWebcam_StopVirtualCamera
