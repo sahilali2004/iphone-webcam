@@ -116,6 +116,8 @@ HRESULT MediaStream::Start(IMFMediaType* type)
     RETURN_IF_FAILED(current->GetGUID(MF_MT_SUBTYPE, &subtype));
     RETURN_IF_FAILED(MFGetAttributeSize(current.Get(), MF_MT_FRAME_SIZE, &width, &height));
     RETURN_IF_FAILED(_producer.Configure(width, height, subtype));
+    _producer.SetReceiver(&_receiver);
+    _receiver.Start();
 
     // The Frame Server normally provides an allocator (IMFSampleAllocatorControl); fall back to our own.
     if (!_allocator) {
@@ -134,6 +136,7 @@ HRESULT MediaStream::Start(IMFMediaType* type)
 HRESULT MediaStream::Stop()
 {
     StopWorker();
+    _receiver.Stop();
     std::lock_guard lock(_lock);
     RETURN_HR_IF(MF_E_SHUTDOWN, !_queue);
     if (_allocator) _allocator->UninitializeSampleAllocator();
@@ -146,6 +149,7 @@ HRESULT MediaStream::Stop()
 void MediaStream::Shutdown()
 {
     StopWorker();
+    _receiver.Stop();
     std::lock_guard lock(_lock);
     if (_queue) {
         _queue->Shutdown();

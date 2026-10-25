@@ -36,6 +36,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly FramePipeline _pipeline = new(new MjpegDecoder());
     private readonly DispatcherTimer _statsTimer;
     private readonly VirtualCameraHost _virtualCamera = new();
+    private readonly FramePublisher _publisher = new();
 
     private CancellationTokenSource? _connectCts;
     private PhoneSession? _session;
@@ -152,6 +153,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _session?.DisconnectAsync("app_closed").Wait(TimeSpan.FromMilliseconds(300));
         _connectCts?.Cancel();
         _pipeline.Dispose();
+        _publisher.Dispose();
         _virtualCamera.Dispose();
     }
 
@@ -334,6 +336,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private void OnFrameDecoded(VideoFrame frame)
     {
         _session?.Stats.OnFrameDecoded(frame.DecodeUs);
+        _publisher.Publish(frame);
         Interlocked.Exchange(ref _latestFrame, frame)?.Dispose();
         if (Interlocked.Exchange(ref _renderQueued, 1) == 0)
             _dispatcher.BeginInvoke(RenderLatest, DispatcherPriority.Render);

@@ -14,6 +14,7 @@ add_library(PhoneWebcamSource SHARED
     src/MediaSource.cpp
     src/MediaStream.cpp
     src/FrameProducer.cpp
+    src/FrameReceiver.cpp
     src/dllmain.cpp
     src/PhoneWebcamSource.def)
 target_link_libraries(PhoneWebcamSource PRIVATE mfplat mfuuid mf mfsensorgroup ole32 propsys gdi32 advapi32)

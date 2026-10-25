@@ -62,5 +62,6 @@ private:
     ComPtr<IMFMediaEventQueue> _queue;
     ComPtr<IMFVideoSampleAllocatorEx> _allocator;
     bool _ownAllocator = false;
+    FrameReceiver _receiver;  // frames from the companion app (declared before _producer, which points at it)
     FrameProducer _producer;
 };

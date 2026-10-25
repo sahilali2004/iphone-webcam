@@ -26,8 +26,62 @@ void ConvertToNv12(const BYTE* bgrx, UINT32 width, UINT32 height, BYTE* y, LONG 
             int b = (a[0] + a[4] + c[0] + c[4] + 2) >> 2;
             int g = (a[1] + a[5] + c[1] + c[5] + 2) >> 2;
             int r = (a[2] + a[6] + c[2] + c[6] + 2) >> 2;
-            dst[col * 2] = static_cast<BYTE>(128 + ((-26 * r - 87 * g + 112 * b + 128) >> 8));
+            dst[col * 2] = static_cast<BYTE>(128 + ((-26 * r - 86 * g + 112 * b + 128) >> 8));
             dst[col * 2 + 1] = static_cast<BYTE>(128 + ((112 * r - 102 * g - 10 * b + 128) >> 8));
+        }
+    }
+}
+
+// Bilinear NV12 resize (contiguous planes, stride = width). Used when the app asked for a different size than the phone sends.
+void ScalePlane(const BYTE* s, UINT32 sw, UINT32 sh, UINT32 sStride, BYTE* d, UINT32 dw, UINT32 dh, UINT32 dStride, int channels)
+{
+    const UINT32 xStep = ((sw - 1) << 16) / (dw > 1 ? dw - 1 : 1);
+    const UINT32 yStep = ((sh - 1) << 16) / (dh > 1 ? dh - 1 : 1);
+    for (UINT32 y = 0; y < dh; y++) {
+        const UINT32 fy = y * yStep, y0 = fy >> 16, y1 = y0 + 1 < sh ? y0 + 1 : y0, wy = (fy >> 8) & 0xFF;
+        const BYTE* r0 = s + static_cast<size_t>(y0) * sStride;
+        const BYTE* r1 = s + static_cast<size_t>(y1) * sStride;
+        BYTE* out = d + static_cast<size_t>(y) * dStride;
+        for (UINT32 x = 0; x < dw; x++) {
+            const UINT32 fx = x * xStep, x0 = fx >> 16, x1 = x0 + 1 < sw ? x0 + 1 : x0, wx = (fx >> 8) & 0xFF;
+            for (int c = 0; c < channels; c++) {
+                const int a = r0[x0 * channels + c], b = r0[x1 * channels + c];
+                const int e = r1[x0 * channels + c], f = r1[x1 * channels + c];
+                const int top = a * (256 - static_cast<int>(wx)) + b * static_cast<int>(wx);
+                const int bottom = e * (256 - static_cast<int>(wx)) + f * static_cast<int>(wx);
+                out[x * channels + c] = static_cast<BYTE>((top * (256 - static_cast<int>(wy)) + bottom * static_cast<int>(wy) + 32768) >> 16);
+            }
+        }
+    }
+}
+
+void ScaleNv12(const BYTE* src, UINT32 sw, UINT32 sh, BYTE* dst, UINT32 dw, UINT32 dh)
+{
+    ScalePlane(src, sw, sh, sw, dst, dw, dh, dw, 1);
+    ScalePlane(src + static_cast<size_t>(sw) * sh, sw / 2, sh / 2, sw, dst + static_cast<size_t>(dw) * dh, dw / 2, dh / 2, dw, 2);
+}
+
+BYTE Clamp255(int v)
+{
+    return static_cast<BYTE>(v < 0 ? 0 : v > 255 ? 255 : v);
+}
+
+// NV12 (BT.709 limited, contiguous) -> BGRX.
+void Nv12ToBgrx(const BYTE* nv12, UINT32 width, UINT32 height, BYTE* dst, LONG pitch)
+{
+    const BYTE* yPlane = nv12;
+    const BYTE* uvPlane = nv12 + static_cast<size_t>(width) * height;
+    for (UINT32 row = 0; row < height; row++) {
+        const BYTE* y = yPlane + static_cast<size_t>(row) * width;
+        const BYTE* uv = uvPlane + static_cast<size_t>(row / 2) * width;
+        BYTE* out = dst + static_cast<ptrdiff_t>(row) * pitch;
+        for (UINT32 col = 0; col < width; col++) {
+            const int c = 298 * (y[col] - 16);
+            const int u = uv[col & ~1u] - 128, v = uv[(col & ~1u) + 1] - 128;
+            out[col * 4 + 0] = Clamp255((c + 541 * u + 128) >> 8);
+            out[col * 4 + 1] = Clamp255((c - 55 * u - 136 * v + 128) >> 8);
+            out[col * 4 + 2] = Clamp255((c + 459 * v + 128) >> 8);
+            out[col * 4 + 3] = 255;
         }
     }
 }
@@ -153,11 +207,54 @@ void FrameProducer::RenderTestCard()
     GdiFlush();
 }
 
+HRESULT FrameProducer::WritePhoneFrame(BYTE* scanline0, LONG pitch)
+{
+    const BYTE* frame = _phone.data();
+    if (_phoneWidth != _width || _phoneHeight != _height) {
+        _scaled.resize(static_cast<size_t>(_width) * _height * 3 / 2);
+        ScaleNv12(_phone.data(), _phoneWidth, _phoneHeight, _scaled.data(), _width, _height);
+        frame = _scaled.data();
+    }
+
+    if (_subtype == MFVideoFormat_NV12) {
+        for (UINT32 row = 0; row < _height; row++)
+            memcpy(scanline0 + static_cast<ptrdiff_t>(row) * pitch, frame + static_cast<size_t>(row) * _width, _width);
+        BYTE* uv = scanline0 + static_cast<ptrdiff_t>(pitch) * _height;
+        const BYTE* srcUv = frame + static_cast<size_t>(_width) * _height;
+        for (UINT32 row = 0; row < _height / 2; row++)
+            memcpy(uv + static_cast<ptrdiff_t>(row) * pitch, srcUv + static_cast<size_t>(row) * _width, _width);
+        return S_OK;
+    }
+    if (_subtype == MFVideoFormat_RGB32) {
+        Nv12ToBgrx(frame, _width, _height, scanline0, pitch);
+        return S_OK;
+    }
+    return MF_E_INVALIDMEDIATYPE;
+}
+
+HRESULT FrameProducer::WriteTestCard(BYTE* scanline0, LONG pitch)
+{
+    RenderTestCard();
+    if (_subtype == MFVideoFormat_NV12) {
+        BYTE* uv = scanline0 + static_cast<ptrdiff_t>(pitch) * _height;
+        ConvertToNv12(_pixels, _width, _height, scanline0, pitch, uv, pitch);
+        return S_OK;
+    }
+    if (_subtype == MFVideoFormat_RGB32) {
+        for (UINT32 row = 0; row < _height; row++)
+            memcpy(scanline0 + static_cast<ptrdiff_t>(row) * pitch, _pixels + static_cast<size_t>(row) * _width * 4, _width * 4);
+        return S_OK;
+    }
+    return MF_E_INVALIDMEDIATYPE;
+}
+
 HRESULT FrameProducer::Fill(IMFSample* sample)
 {
     RETURN_HR_IF(MF_E_NOT_INITIALIZED, !_dc);
-    RenderTestCard();
     _frameCount++;
+
+    // Phone video if the app delivered a frame within the last second; otherwise the test card.
+    const bool phone = _receiver && _receiver->CopyLatest(_phone, _phoneWidth, _phoneHeight, 1000);
 
     ComPtr<IMFMediaBuffer> buffer;
     RETURN_IF_FAILED(sample->GetBufferByIndex(0, &buffer));
@@ -176,26 +273,14 @@ HRESULT FrameProducer::Fill(IMFSample* sample)
         RETURN_IF_FAILED(buffer->Lock(&start, &max, nullptr));
         scanline0 = start;
         pitch = static_cast<LONG>(_subtype == MFVideoFormat_NV12 ? _width : _width * 4);
-        length = max;
     }
 
-    HRESULT hr = S_OK;
-    if (_subtype == MFVideoFormat_NV12) {
-        BYTE* uv = scanline0 + static_cast<ptrdiff_t>(pitch) * _height;
-        ConvertToNv12(_pixels, _width, _height, scanline0, pitch, uv, pitch);
-        if (!locked2d) buffer->SetCurrentLength(_width * _height * 3 / 2);
-    } else if (_subtype == MFVideoFormat_RGB32) {
-        for (UINT32 row = 0; row < _height; row++) {
-            memcpy(scanline0 + static_cast<ptrdiff_t>(row) * pitch, _pixels + static_cast<size_t>(row) * _width * 4, _width * 4);
-        }
-        if (!locked2d) buffer->SetCurrentLength(_width * _height * 4);
-    } else {
-        hr = MF_E_INVALIDMEDIATYPE;
-    }
+    HRESULT hr = phone ? WritePhoneFrame(scanline0, pitch) : WriteTestCard(scanline0, pitch);
 
     if (locked2d) {
         buffer2d->Unlock2D();
     } else {
+        buffer->SetCurrentLength(_subtype == MFVideoFormat_NV12 ? _width * _height * 3 / 2 : _width * _height * 4);
         buffer->Unlock();
     }
     return hr;
