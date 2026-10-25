@@ -40,6 +40,8 @@ On the phone: **Settings › About phone › Software information** → tap **Bu
    - **OBS:** Sources › + › Video Capture Device › Device: Phone Webcam (Windows Virtual Camera).
    - **Windows Camera app:** the switch-camera button.
 
+**Microphone (optional):** tick **Use phone microphone**. Windows can't create a virtual microphone without a driver, so the phone's audio goes into a virtual audio cable. With the free **VB-CABLE** installed, pick **CABLE Output (VB-Audio Virtual Cable)** as the microphone in your call app; the dashboard names the right one. See [docs/microphone.md](docs/microphone.md).
+
 Rear/front camera and 720p/1080p can be changed on the PC (or the phone) while live. While Phone Webcam runs on the PC but no phone is streaming, apps see a "Waiting for the phone" card instead of a frozen image.
 
 ## Troubleshooting
@@ -52,6 +54,8 @@ Rear/front camera and 720p/1080p can be changed on the PC (or the phone) while l
 | Camera missing in other apps | Phone Webcam must be running on the PC. If the panel says the camera isn't installed, rerun `Install.cmd`. If it says Windows blocked camera access: **Settings › Privacy & security › Camera › Let desktop apps access your camera**. |
 | App shows the camera but it's black | Usually the phone is face-down or covered. Check the preview in the Phone Webcam window. |
 | Stutters on Wi-Fi | Use USB, or switch to 720p. |
+| Microphone sounds distorted or wrong-pitch | The selected cable's two sides use different formats (the dashboard says so). Use VB-CABLE, or set both sides to the same format in *Sound settings › More sound settings*. |
+| Microphone missing in call apps | Install VB-CABLE, select it under **Use phone microphone**, and pick the microphone the dashboard names. |
 
 Logs: `%LOCALAPPDATA%\PhoneWebcam\logs\app.log` (no video content is ever logged).
 
@@ -65,7 +69,7 @@ Logs: `%LOCALAPPDATA%\PhoneWebcam\logs\app.log` (no video content is ever logged
 ## How it works
 
 ```text
-Phone app ──JPEG frames over TCP (USB via adb forward, or Wi-Fi)──► Phone Webcam (PC)
+Phone app ──JPEG frames (+ optional mic PCM) over TCP (USB via adb forward, or Wi-Fi)──► Phone Webcam (PC)
     CameraX → JPEG                                                   decode → NV12 ─┐
                                                                                     │ named pipe
                           Chrome / Teams / Zoom / OBS ◄── Windows Frame Server ◄── PhoneWebcamSource.dll
@@ -113,4 +117,4 @@ Android unit tests: `cd android; .\gradlew.bat testDebugUnitTest`. iOS: see [doc
 
 ## Not in V1
 
-Audio/microphone, H.264, 60 fps/4K, streaming while the phone app is in the background, Windows 10, iPhone over USB, and encryption on Wi-Fi. The architecture leaves room for each; see the decision log in [docs/architecture.md](docs/architecture.md).
+A built-in virtual microphone driver (a virtual cable is used instead), H.264, 60 fps/4K, streaming while the phone app is in the background, Windows 10, iPhone over USB, and encryption on Wi-Fi. The architecture leaves room for each; see the decision log in [docs/architecture.md](docs/architecture.md).

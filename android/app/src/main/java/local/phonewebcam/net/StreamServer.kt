@@ -40,6 +40,8 @@ interface ServerListener {
     fun onSetResolution(width: Int, height: Int)
     fun onSetQuality(quality: Double)
     fun onSetTorch(on: Boolean)
+    fun onStartAudio(sampleRate: Int, channels: Int)
+    fun onStopAudio()
 }
 
 /** Static parts of DEVICE_INFO supplied by the app. */
@@ -51,6 +53,7 @@ data class DeviceInfoTemplate(
     val appVersion: String,
     val cameras: List<Pair<String, Boolean>>,
     val formats: List<Pair<Int, Int>>,
+    val microphone: Boolean,
 )
 
 /**
@@ -105,6 +108,19 @@ class StreamServer(private val pairings: PairingStore, private val listener: Ser
             return
         }
         c.send(after = done) { it.videoFrame(header, data, length) }
+    }
+
+    /** Audio frames are small and must not be dropped: queued behind at most one video frame. */
+    fun sendAudio(header: local.phonewebcam.protocol.AudioFrameHeader, pcm: ByteArray, length: Int) {
+        val c = client ?: return
+        if (!c.authorized) return
+        c.send { it.audioFrame(header, pcm, length) }
+    }
+
+    fun sendAudioState(state: String, reason: String? = null) {
+        val json = JSONObject().put("state", state)
+        if (reason != null) json.put("reason", reason)
+        client?.send { it.control(MessageType.AUDIO_STATE, json) }
     }
 
     fun sendStreamState(state: JSONObject) {
@@ -346,6 +362,12 @@ internal class ClientSession(
                 server.post { listener.onSetTorch(on) }
             }
             MessageType.SET_FPS -> sendError(ErrorCodes.UNSUPPORTED, "Only 30 fps is supported")
+            MessageType.START_AUDIO -> {
+                val rate = json.optInt("sampleRate", 48000)
+                val channels = json.optInt("channels", 1)
+                server.post { listener.onStartAudio(rate, channels) }
+            }
+            MessageType.STOP_AUDIO -> server.post { listener.onStopAudio() }
             MessageType.PING -> {
                 val echoed = MessageEncoder.readPing(payload)
                 send { it.pong(echoed, MonoClock.nowUs) }
@@ -410,6 +432,7 @@ internal class ClientSession(
             .put("cameras", JSONArray(t.cameras.map { JSONObject().put("id", it.first).put("torch", it.second) }))
             .put("formats", JSONArray(t.formats.map { JSONObject().put("w", it.first).put("h", it.second).put("fps", JSONArray(listOf(30))) }))
             .put("codecs", JSONArray(listOf("mjpeg")))
+            .put("microphone", t.microphone)
         send { it.control(MessageType.DEVICE_INFO, info) }
     }
 

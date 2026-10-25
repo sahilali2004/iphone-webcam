@@ -25,5 +25,13 @@
     "frameId": 42,
     "ptsUs": 123456789012,
     "bytes": "01030100800738042a000000141a99be1c000000"
+  },
+  "audioFrameHeader": {
+    "codec": 1,
+    "channels": 1,
+    "sampleRate": 48000,
+    "sequence": 7,
+    "ptsUs": 123456789012,
+    "bytes": "0101000080bb000007000000141a99be1c000000"
   }
 }

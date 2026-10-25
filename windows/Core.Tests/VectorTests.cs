@@ -51,5 +51,13 @@ public class VectorTests
             (byte)vf.GetProperty("rotation").GetInt32(), (ushort)vf.GetProperty("width").GetInt32(), (ushort)vf.GetProperty("height").GetInt32(),
             vf.GetProperty("frameId").GetUInt32(), vf.GetProperty("ptsUs").GetUInt64()).Write(frame);
         Assert.Equal(Hex(vf, "bytes"), frame);
+
+        var af = root.GetProperty("audioFrameHeader");
+        var audio = new byte[AudioFrameHeader.Size];
+        var audioHeader = new AudioFrameHeader((AudioCodec)af.GetProperty("codec").GetInt32(), (byte)af.GetProperty("channels").GetInt32(),
+            af.GetProperty("sampleRate").GetUInt32(), af.GetProperty("sequence").GetUInt32(), af.GetProperty("ptsUs").GetUInt64());
+        audioHeader.Write(audio);
+        Assert.Equal(Hex(af, "bytes"), audio);
+        Assert.Equal(audioHeader, AudioFrameHeader.Parse(audio));
     }
 }

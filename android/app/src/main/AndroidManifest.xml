@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Optional: phone microphone as the PC's microphone, only while the PC turns it on. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Wi-Fi discovery: receive the PC's broadcast probe even in power-save. -->
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />

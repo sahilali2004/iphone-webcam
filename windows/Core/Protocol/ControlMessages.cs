@@ -51,7 +51,21 @@ public sealed record DeviceInfo(
     bool Paired,
     CameraInfo[] Cameras,
     FormatInfo[] Formats,
-    string[] Codecs);
+    string[] Codecs,
+    bool Microphone = false);
+
+/// <summary>PC → phone: start sending microphone audio (PCM s16le).</summary>
+public sealed record StartAudio(int SampleRate, int Channels);
+
+/// <summary>Phone → PC after START_AUDIO/STOP_AUDIO: "streaming", "stopped" or "denied" (no mic permission).</summary>
+public sealed record AudioState(string State, string? Reason = null);
+
+public static class AudioStates
+{
+    public const string Streaming = "streaming";
+    public const string Stopped = "stopped";
+    public const string Denied = "denied";
+}
 
 public sealed record PairConfirm(string PcNonce, string Proof);
 

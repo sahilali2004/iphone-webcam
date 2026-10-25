@@ -49,12 +49,15 @@ Control payloads (`0x01–0x7F`) are UTF-8 JSON objects: small, rare, easy to de
 | 0x15 | SET_FPS | PC→ | `{fps}` |
 | 0x16 | SET_QUALITY | PC→ | `{quality: 0.1–1.0}` (MJPEG) / `{bitrate}` (H.264) |
 | 0x17 | SET_TORCH | PC→ | `{on:bool}` |
+| 0x18 | START_AUDIO | PC→ | `{sampleRate: 48000, channels: 1}`: start sending microphone audio |
+| 0x19 | STOP_AUDIO | PC→ | `{}` |
+| 0x1A | AUDIO_STATE | →PC | `{state: "streaming"\|"stopped"\|"denied", reason?}` |
 | 0x20 | PING | both | binary: `u64 senderTimeUs` |
 | 0x21 | PONG | both | binary: `u64 echoedTimeUs, u64 responderTimeUs` |
 | 0x3F | DISCONNECT | both | `{reason}` — graceful close, peer must not auto-reconnect if `reason:"user"` |
 | 0x40 | ERROR | both | `{code, message}` — codes: `busy`, `unauthorized`, `unsupported`, `camera_unavailable`, `bad_request` |
 | 0x80 | VIDEO_FRAME | →PC | binary, §5 |
-| 0x81 | AUDIO_FRAME | →PC | reserved for future microphone support |
+| 0x81 | AUDIO_FRAME | →PC | binary, §5a |
 
 Commands that change stream settings are answered by a `STREAM_STATE` reflecting what the iPhone actually applied (it may clamp to supported values).
 
@@ -111,6 +114,21 @@ offset size field
 12     8    ptsUs      capture time, iPhone monotonic clock (µs) — same clock as PING/PONG
 20     ..   data       codec bitstream (length = header.length − 20)
 ```
+
+### 5a. AUDIO_FRAME payload
+
+```text
+offset size field
+0      1    codec       1 = PCM signed 16-bit little-endian, interleaved
+1      1    channels    1 or 2
+2      2    reserved    0
+4      4    sampleRate  e.g. 48000
+8      4    sequence    +1 per frame
+12     8    ptsUs       capture time, phone monotonic clock (µs)
+20     ..   pcm         normally 20 ms (48 kHz mono: 960 samples = 1920 bytes)
+```
+
+DEVICE_INFO carries `microphone: bool`. Audio frames are never dropped on the phone; the PC caps its playout buffer at 150 ms.
 
 ### 5.1 Backpressure rule (both ends)
 

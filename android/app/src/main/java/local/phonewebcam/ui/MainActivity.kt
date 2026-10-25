@@ -19,6 +19,7 @@ import java.net.Inet4Address
 import java.net.NetworkInterface
 import kotlin.math.abs
 import local.phonewebcam.R
+import local.phonewebcam.camera.AudioStreamer
 import local.phonewebcam.camera.CameraController
 import local.phonewebcam.camera.CameraPosition
 import local.phonewebcam.camera.JpegEncoder
@@ -31,6 +32,9 @@ import local.phonewebcam.net.MonoClock
 import local.phonewebcam.net.PairingStore
 import local.phonewebcam.net.ServerListener
 import local.phonewebcam.net.StreamServer
+import local.phonewebcam.protocol.AudioCodec
+import local.phonewebcam.protocol.AudioFrameHeader
+import local.phonewebcam.protocol.AudioStates
 import local.phonewebcam.protocol.ErrorCodes
 import local.phonewebcam.protocol.StreamStates
 import local.phonewebcam.protocol.VideoCodec
@@ -70,6 +74,8 @@ class MainActivity : AppCompatActivity(), ServerListener {
     private var connectedPc: String? = null
     private var pairingCode: String? = null
     private var torchOn = false
+    private var audio: AudioStreamer? = null
+    private var audioSequence = 0L
     private var position = CameraPosition.BACK
     private var resolution = StreamResolution.HD1080
 
@@ -86,9 +92,14 @@ class MainActivity : AppCompatActivity(), ServerListener {
         }
     }
 
-    private val requestCamera = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) startCamera() else showError(getString(R.string.error_camera_permission))
+    // Camera is required; the microphone is optional (only used if the PC turns it on).
+    private val requestPermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+        if (result[Manifest.permission.CAMERA] == true || hasPermission(Manifest.permission.CAMERA)) startCamera()
+        else showError(getString(R.string.error_camera_permission))
     }
+
+    private fun hasPermission(permission: String) =
+        ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -158,11 +169,8 @@ class MainActivity : AppCompatActivity(), ServerListener {
     // MARK: user actions
 
     private fun requestStart() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-            startCamera()
-        } else {
-            requestCamera.launch(Manifest.permission.CAMERA)
-        }
+        val missing = listOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO).filterNot(::hasPermission)
+        if (missing.isEmpty()) startCamera() else requestPermissions.launch(missing.toTypedArray())
     }
 
     private fun startCamera() {
@@ -182,6 +190,7 @@ class MainActivity : AppCompatActivity(), ServerListener {
 
     private fun stopCamera() {
         gate.setStreaming(false)
+        stopAudio()
         server.stop()
         discovery?.stop()
         discovery = null
@@ -292,6 +301,7 @@ class MainActivity : AppCompatActivity(), ServerListener {
         if (pcName == null) {
             isStreaming = false
             setTorch(false)
+            stopAudio()
         }
         updateFlow()
         render()
@@ -334,6 +344,37 @@ class MainActivity : AppCompatActivity(), ServerListener {
 
     override fun onSetTorch(on: Boolean) {
         setTorch(on)
+    }
+
+    override fun onStartAudio(sampleRate: Int, channels: Int) {
+        if (!hasPermission(Manifest.permission.RECORD_AUDIO)) {
+            server.sendAudioState(AudioStates.DENIED, getString(R.string.mic_denied))
+            return
+        }
+        stopAudio()
+        val rate = sampleRate.coerceIn(8000, 48000)
+        val ch = channels.coerceIn(1, 2)
+        val streamer = AudioStreamer(rate, ch) { pcm, length, ptsUs ->
+            server.sendAudio(AudioFrameHeader(AudioCodec.PCM_S16LE, ch, rate.toLong(), audioSequence++ and 0xFFFFFFFFL, ptsUs), pcm, length)
+        }
+        if (streamer.start()) {
+            audio = streamer
+            server.sendAudioState(AudioStates.STREAMING)
+        } else {
+            server.sendAudioState(AudioStates.DENIED, getString(R.string.mic_unavailable))
+        }
+        render()
+    }
+
+    override fun onStopAudio() {
+        stopAudio()
+        server.sendAudioState(AudioStates.STOPPED)
+    }
+
+    private fun stopAudio() {
+        audio?.stop()
+        audio = null
+        if (::fpsText.isInitialized) render()
     }
 
     // MARK: state
@@ -383,6 +424,7 @@ class MainActivity : AppCompatActivity(), ServerListener {
         addressText.visibility = if (isRunning) View.VISIBLE else View.GONE
         addressText.text = getString(R.string.connect_hint, wifiAddress() ?: getString(R.string.no_wifi), StreamServer.PORT)
         if (!isRunning) fpsText.setText(R.string.fps_default)
+        statusDetail.append(if (audio != null) getString(R.string.mic_on_suffix) else "")
     }
 
     private fun showError(message: String?) {
@@ -398,6 +440,7 @@ class MainActivity : AppCompatActivity(), ServerListener {
         appVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: "0.1.0",
         cameras = CameraPosition.entries.filter { camera.hasCamera(it) }.map { it.id to (it == CameraPosition.BACK) },
         formats = StreamResolution.entries.map { it.width to it.height },
+        microphone = packageManager.hasSystemFeature(PackageManager.FEATURE_MICROPHONE),
     )
 
     /** IPv4 of the Wi-Fi interface, for manual connection from the PC. */

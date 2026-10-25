@@ -20,6 +20,9 @@ object MessageType {
     const val SET_FPS = 0x15
     const val SET_QUALITY = 0x16
     const val SET_TORCH = 0x17
+    const val START_AUDIO = 0x18
+    const val STOP_AUDIO = 0x19
+    const val AUDIO_STATE = 0x1A
 
     const val PING = 0x20
     const val PONG = 0x21
@@ -108,6 +111,26 @@ data class VideoFrameHeader(
     }
 }
 
+object AudioCodec {
+    const val PCM_S16LE = 1
+}
+
+/** 20-byte header at the start of an AUDIO_FRAME payload (docs/protocol.md §5a). */
+data class AudioFrameHeader(val codec: Int, val channels: Int, val sampleRate: Long, val sequence: Long, val ptsUs: Long) {
+    fun encode(): ByteArray = ByteBuffer.allocate(SIZE).order(ByteOrder.LITTLE_ENDIAN).apply {
+        put(codec.toByte())
+        put(channels.toByte())
+        putShort(0)
+        putInt(sampleRate.toInt())
+        putInt(sequence.toInt())
+        putLong(ptsUs)
+    }.array()
+
+    companion object {
+        const val SIZE = 20
+    }
+}
+
 /** Builds complete messages (header + payload). Not thread-safe; callers serialize writes. */
 class MessageEncoder {
     private var seq = 0L
@@ -137,6 +160,13 @@ class MessageEncoder {
         return out
     }
 
+    fun audioFrame(header: AudioFrameHeader, pcm: ByteArray, length: Int = pcm.size): ByteArray {
+        val payload = ByteArray(AudioFrameHeader.SIZE + length)
+        header.encode().copyInto(payload)
+        pcm.copyInto(payload, AudioFrameHeader.SIZE, 0, length)
+        return message(MessageType.AUDIO_FRAME, payload)
+    }
+
     companion object {
         fun readPing(payload: ByteArray): Long {
             if (payload.size < 8) throw ProtocolException("PING truncated")
@@ -149,6 +179,12 @@ object StreamStates {
     const val STREAMING = "streaming"
     const val STOPPED = "stopped"
     const val PAUSED = "paused"
+}
+
+object AudioStates {
+    const val STREAMING = "streaming"
+    const val STOPPED = "stopped"
+    const val DENIED = "denied"
 }
 
 object ErrorCodes {

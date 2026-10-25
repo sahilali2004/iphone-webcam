@@ -4,7 +4,7 @@
         xmlns:vm="clr-namespace:PhoneWebcam.App.ViewModels"
         xmlns:local="clr-namespace:PhoneWebcam.App"
         Title="Phone Webcam"
-        Width="1120" Height="680" MinWidth="820" MinHeight="560"
+        Width="1120" Height="760" MinWidth="820" MinHeight="560"
         FontFamily="{StaticResource UiFont}"
         WindowStartupLocation="CenterScreen">
 
@@ -102,8 +102,14 @@
             </Grid>
         </Border>
 
-        <!-- Side panel: status → phone & camera choices → stream numbers → webcam button. -->
-        <DockPanel Grid.Column="2" LastChildFill="False">
+        <!-- Side panel: status → phone & camera choices → stream numbers (scrolls if short) → webcam button (always visible). -->
+        <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+            <DockPanel LastChildFill="False" Margin="0,0,14,0">
 
             <StackPanel DockPanel.Dock="Top">
                 <StackPanel Orientation="Horizontal">
@@ -160,6 +166,14 @@
                     <RadioButton x:Name="Res720Button" Content="720p" GroupName="Quality" IsChecked="{Binding Is720}" Style="{StaticResource Segment}" Margin="0,0,3,0" />
                     <RadioButton x:Name="Res1080Button" Content="1080p" GroupName="Quality" IsChecked="{Binding Is1080}" Style="{StaticResource Segment}" Margin="3,0,0,0" />
                 </UniformGrid>
+
+                <TextBlock Text="Microphone" Style="{StaticResource Caption}" Margin="0,12,0,3" />
+                <CheckBox x:Name="MicrophoneCheck" Content="Use phone microphone" IsChecked="{Binding MicrophoneOn}" />
+                <ComboBox x:Name="AudioPicker" ItemsSource="{Binding AudioDevices}" SelectedItem="{Binding SelectedAudioDevice}"
+                          DisplayMemberPath="Label" HorizontalAlignment="Stretch" Margin="0,6,0,0"
+                          ToolTip="Where the phone's microphone is played. Pick a virtual cable to use it as a microphone in other apps."
+                          Visibility="{Binding MicrophoneOn, Converter={StaticResource BoolToVisibility}}" />
+                <TextBlock Text="{Binding MicrophoneText}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,6,0,0" />
             </StackPanel>
 
             <Separator DockPanel.Dock="Top" Margin="0,14" />
@@ -204,14 +218,17 @@
                 </StackPanel>
             </Grid>
 
+            </DockPanel>
+            </ScrollViewer>
+
             <!-- Webcam button pinned to the bottom of the panel. -->
-            <StackPanel DockPanel.Dock="Bottom">
+            <StackPanel Grid.Row="1" Margin="0,12,0,0">
                 <TextBlock Text="{Binding VirtualCameraText}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,12" />
                 <Button x:Name="WebcamButton" Content="{Binding WebcamButtonText}" Command="{Binding ToggleWebcamCommand}"
                         Style="{DynamicResource AccentButtonStyle}"
                         HorizontalAlignment="Stretch" Padding="0,12" FontSize="16" />
             </StackPanel>
-        </DockPanel>
+        </Grid>
 
         <!-- Last log line: quiet, for diagnosing without opening the log file. -->
         <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Text="{Binding LastLog}" Margin="2,10,0,0"

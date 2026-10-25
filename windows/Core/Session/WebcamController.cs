@@ -40,6 +40,7 @@ public sealed class WebcamController : IAsyncDisposable
     private PhoneSession? _session;
     private StartStream _settings = new("back", 1920, 1080, 30, "mjpeg", 0.7);
     private bool _webcamOn;
+    private bool _microphoneOn;
 
     public WebcamController(IPairingStore pairings, Func<TransportKind, ITransport> transports)
     {
@@ -57,6 +58,19 @@ public sealed class WebcamController : IAsyncDisposable
 
     /// <summary>Raised on the receive thread; the handler owns the frame and must dispose it.</summary>
     public event Action<EncodedFrame>? FrameReceived;
+
+    /// <summary>Raised on the receive thread; copy the PCM before returning.</summary>
+    public event AudioFrameHandler? AudioReceived;
+
+    public event Action<AudioState>? AudioStateChanged;
+
+    public bool IsMicrophoneOn
+    {
+        get
+        {
+            lock (_gate) return _microphoneOn;
+        }
+    }
 
     public WebcamStatus Status { get; private set; } = WebcamStatus.NoDevice;
 
@@ -149,6 +163,15 @@ public sealed class WebcamController : IAsyncDisposable
         return Session is { State: SessionState.Streaming } s ? s.StopStreamAsync() : Task.CompletedTask;
     }
 
+    /// <summary>Phone microphone on/off; remembered across reconnects like the webcam.</summary>
+    public Task SetMicrophoneAsync(bool on)
+    {
+        lock (_gate) _microphoneOn = on;
+        Log.Info(on ? "Microphone on" : "Microphone off");
+        if (Session is not { State: SessionState.Authorized or SessionState.Streaming } s) return Task.CompletedTask;
+        return on ? s.StartAudioAsync() : s.StopAudioAsync();
+    }
+
     /// <summary>Camera / resolution / quality. Applied immediately if streaming.</summary>
     public Task ApplySettingsAsync(StartStream settings)
     {
@@ -220,6 +243,8 @@ public sealed class WebcamController : IAsyncDisposable
             else handler(frame);
         };
         session.DeviceInfoReceived += info => DeviceConnected?.Invoke(info);
+        session.AudioReceived += (header, pcm) => AudioReceived?.Invoke(header, pcm);
+        session.AudioStateChanged += state => AudioStateChanged?.Invoke(state);
         session.PairingCodeRequired += () =>
         {
             SetStatus(WebcamStatus.Pairing, "Type the 6-digit code shown on the phone.");
@@ -232,6 +257,7 @@ public sealed class WebcamController : IAsyncDisposable
             {
                 SetStatus(WebcamStatus.Connected, $"Connected over {via}.");
                 if (IsWebcamOn) _ = SafeAsync(() => session.StartStreamAsync(Settings));
+                if (IsMicrophoneOn) _ = SafeAsync(() => session.StartAudioAsync());
             }
         };
         session.StreamStateChanged += state =>

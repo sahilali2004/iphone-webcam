@@ -35,6 +35,8 @@ public sealed class SessionOptions
 /// PC side of one connection to the phone app: handshake, pairing/auth, keepalive, clock sync,
 /// and demultiplexing of control messages and video frames. Transport-agnostic (takes any Stream).
 /// </summary>
+public delegate void AudioFrameHandler(AudioFrameHeader header, ReadOnlySpan<byte> pcm);
+
 public sealed class PhoneSession : IAsyncDisposable
 {
     private static readonly string AppVersion =
@@ -78,6 +80,11 @@ public sealed class PhoneSession : IAsyncDisposable
 
     /// <summary>Raised on the receive loop. The handler takes ownership of the frame (must dispose).</summary>
     public event Action<EncodedFrame>? FrameReceived;
+
+    /// <summary>Raised on the receive loop. The PCM span is only valid during the call: copy it.</summary>
+    public event AudioFrameHandler? AudioReceived;
+
+    public event Action<AudioState>? AudioStateChanged;
 
     public SessionState State { get; private set; } = SessionState.Handshaking;
 
@@ -163,6 +170,11 @@ public sealed class PhoneSession : IAsyncDisposable
 
     public Task StopStreamAsync() => _writer.WriteControlAsync(MessageType.StopStream, new Empty(), Token);
 
+    public Task StartAudioAsync(int sampleRate = 48000, int channels = 1) =>
+        _writer.WriteControlAsync(MessageType.StartAudio, new StartAudio(sampleRate, channels), Token);
+
+    public Task StopAudioAsync() => _writer.WriteControlAsync(MessageType.StopAudio, new Empty(), Token);
+
     public Task SendControlAsync<T>(MessageType type, T message) => _writer.WriteControlAsync(type, message, Token);
 
     public async Task DisconnectAsync(string reason = "user")
@@ -211,6 +223,18 @@ public sealed class PhoneSession : IAsyncDisposable
 
                 case MessageType.VideoFrame:
                     handedOff = OnVideoFrame(message);
+                    break;
+
+                case MessageType.AudioFrame:
+                    var payload = message.Payload.Span;
+                    var audioHeader = AudioFrameHeader.Parse(payload);
+                    AudioReceived?.Invoke(audioHeader, payload[AudioFrameHeader.Size..]);
+                    break;
+
+                case MessageType.AudioState:
+                    var audioState = ProtocolJson.Deserialize<AudioState>(message);
+                    Log.Info($"Phone microphone {audioState.State}{(audioState.Reason is null ? "" : $" ({audioState.Reason})")}");
+                    AudioStateChanged?.Invoke(audioState);
                     break;
 
                 case MessageType.Ping:

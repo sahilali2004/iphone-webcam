@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using PhoneWebcam.Core.Audio;
 using PhoneWebcam.Core.Devices;
 using PhoneWebcam.Core.Diagnostics;
 using PhoneWebcam.Core.Protocol;
@@ -41,6 +42,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly FramePipeline _pipeline = new(new MjpegDecoder());
     private readonly FramePublisher _publisher = new();
     private readonly VirtualCameraHost _virtualCamera = new();
+    private readonly AudioOutput _audio = new();
+    private AudioDevice? _selectedAudioDevice;
+    private bool _microphoneOn;
+    private bool _microphoneStreaming;
+    private string _microphoneText = "";
     private readonly DispatcherTimer _statsTimer;
 
     private VideoFrame? _latestFrame;
@@ -109,6 +115,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         });
         _controller.PairingFailed += reason => Ui(() => PairingError = reason);
         _controller.FrameReceived += _pipeline.Submit;
+        _controller.AudioReceived += (_, pcm) => _audio.Write(pcm);
+        _controller.AudioStateChanged += state => Ui(() => OnAudioState(state));
         _pipeline.FrameDecoded += OnFrameDecoded;
         _devices.DevicesChanged += list => Ui(() => OnDevicesChanged(list));
 
@@ -116,12 +124,49 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _statsTimer.Start();
         Log.Written += entry => Ui(() => LastLog = entry.ToString());
 
+        LoadAudioDevices();
+        _microphoneOn = _settings.MicrophoneOn;
+        if (_microphoneOn) _ = Guard(_controller.SetMicrophoneAsync(true));
+        UpdateMicrophoneText();
+
         _ = StartVirtualCameraAsync();
         _devices.Start();
         _ = RetargetAsync();
     }
 
     public ObservableCollection<DeviceOption> DeviceOptions { get; } = [];
+
+    public ObservableCollection<AudioDevice> AudioDevices { get; } = [];
+
+    /// <summary>"Use phone microphone".</summary>
+    public bool MicrophoneOn
+    {
+        get => _microphoneOn;
+        set
+        {
+            if (!Set(ref _microphoneOn, value)) return;
+            _settings.MicrophoneOn = value;
+            _settings.Save();
+            if (!value) _audio.Stop();
+            _ = Guard(_controller.SetMicrophoneAsync(value));
+            UpdateMicrophoneText();
+        }
+    }
+
+    public AudioDevice? SelectedAudioDevice
+    {
+        get => _selectedAudioDevice;
+        set
+        {
+            if (value is null || !Set(ref _selectedAudioDevice, value)) return;
+            _settings.AudioDeviceId = value.Id;
+            _settings.Save();
+            if (_microphoneStreaming) StartAudioOutput();
+            UpdateMicrophoneText();
+        }
+    }
+
+    public string MicrophoneText { get => _microphoneText; private set => Set(ref _microphoneText, value); }
 
     public ICommand ToggleWebcamCommand { get; }
 
@@ -242,6 +287,59 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _pipeline.Dispose();
         _publisher.Dispose();
         _virtualCamera.Dispose();
+        _audio.Dispose();
+    }
+
+    // ---- Microphone ----
+
+    private void LoadAudioDevices()
+    {
+        try
+        {
+            foreach (var device in AudioOutput.ListDevices()) AudioDevices.Add(device);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Audio devices unavailable: {ex.Message}");
+        }
+        // Saved choice, else a working virtual cable, else any cable, else the first device.
+        _selectedAudioDevice = AudioDevices.FirstOrDefault(d => d.Id == _settings.AudioDeviceId)
+                               ?? AudioDevices.FirstOrDefault(d => d.IsVirtualCable && d.Warning is null)
+                               ?? AudioDevices.FirstOrDefault(d => d.IsVirtualCable)
+                               ?? AudioDevices.FirstOrDefault();
+    }
+
+    private void OnAudioState(AudioState state)
+    {
+        _microphoneStreaming = state.State == AudioStates.Streaming;
+        if (_microphoneStreaming) StartAudioOutput();
+        else _audio.Stop();
+        UpdateMicrophoneText(state.State == AudioStates.Denied ? state.Reason ?? "The phone didn't allow microphone access." : null);
+    }
+
+    private void StartAudioOutput()
+    {
+        if (_selectedAudioDevice is null) return;
+        try
+        {
+            _audio.Start(_selectedAudioDevice.Id, 48000, 1);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Audio output failed: {ex.Message}");
+            UpdateMicrophoneText($"Couldn't play to {_selectedAudioDevice.Name}: {ex.Message}");
+        }
+    }
+
+    private void UpdateMicrophoneText(string? problem = null)
+    {
+        var device = _selectedAudioDevice;
+        MicrophoneText = problem
+            ?? (!_microphoneOn ? "Send the phone's microphone to this PC, for use in calls."
+                : device is null ? "No playback devices found."
+                : device.Warning is not null ? device.Warning
+                : device.IsVirtualCable ? $"In your call app, choose the microphone “{device.MicrophoneName}”."
+                : $"Playing on {device.Name}. To use the phone as a microphone in other apps, install the free VB-CABLE (vb-audio.com/Cable) and choose it here.");
     }
 
     // ---- Device selection ----

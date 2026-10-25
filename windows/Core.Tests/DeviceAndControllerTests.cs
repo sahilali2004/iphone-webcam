@@ -148,6 +148,19 @@ public sealed class WebcamControllerTests(ITestOutputHelper output) : IDisposabl
         Assert.Null(_lastCode); // no re-pairing needed
         Assert.Equal(1280, lastWidth); // settings kept
 
+        // 4b. Microphone: PCM frames flow while on, and stop when off.
+        var audioFrames = 0;
+        var audioBytes = 0;
+        controller.AudioReceived += (header, pcm) => { audioFrames++; audioBytes = pcm.Length; Assert.Equal(48000u, header.SampleRate); };
+        await controller.SetMicrophoneAsync(true);
+        await WaitFor(() => audioFrames > 25, "audio frames");
+        Assert.Equal(960 * 2, audioBytes); // 20 ms of 48 kHz mono s16
+        await controller.SetMicrophoneAsync(false);
+        await Task.Delay(300);
+        var audioAfter = audioFrames;
+        await Task.Delay(400);
+        Assert.InRange(audioFrames - audioAfter, 0, 1);
+
         // 5. Stop Webcam → stays connected, frames stop.
         await controller.StopWebcamAsync();
         await WaitFor(() => controller.Status == WebcamStatus.Connected, "stopped");

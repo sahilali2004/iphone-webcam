@@ -21,6 +21,11 @@ public sealed class AppSettings
 
     public int Height { get; set; } = 1080;
 
+    public bool MicrophoneOn { get; set; }
+
+    /// <summary>Windows playback device id the phone's microphone is sent to (ideally a virtual cable).</summary>
+    public string? AudioDeviceId { get; set; }
+
     private static string FilePath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PhoneWebcam", "settings.json");
 

@@ -1,6 +1,7 @@
 package local.phonewebcam
 
 import java.io.File
+import local.phonewebcam.protocol.AudioFrameHeader
 import local.phonewebcam.protocol.MessageEncoder
 import local.phonewebcam.protocol.MessageHeader
 import local.phonewebcam.protocol.PairingCrypto
@@ -52,6 +53,10 @@ class VectorTests {
         val frame = VideoFrameHeader(vf.getInt("codec"), vf.getInt("flags"), vf.getInt("rotation"),
             vf.getInt("width"), vf.getInt("height"), vf.getLong("frameId"), vf.getLong("ptsUs"))
         assertArrayEquals(hex(vf.getString("bytes")), frame.encode())
+
+        val af = vectors.getJSONObject("audioFrameHeader")
+        val audio = AudioFrameHeader(af.getInt("codec"), af.getInt("channels"), af.getLong("sampleRate"), af.getLong("sequence"), af.getLong("ptsUs"))
+        assertArrayEquals(hex(af.getString("bytes")), audio.encode())
     }
 }
 

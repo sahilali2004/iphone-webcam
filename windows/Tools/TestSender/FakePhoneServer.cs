@@ -134,6 +134,7 @@ public sealed class FakePhoneServer(FakePhoneOptions options) : IDisposable
         finally
         {
             cts.Cancel();
+            connection.StopAudioIfRunning();
             await connection.StopStreamingAsync().ConfigureAwait(false);
             Interlocked.Decrement(ref _activeClients);
         }
@@ -202,7 +203,8 @@ public sealed class FakePhoneServer(FakePhoneOptions options) : IDisposable
                         paired,
                         [new CameraInfo("back", false), new CameraInfo("front", false)],
                         SupportedSizes.Select(s => new FormatInfo(s.W, s.H, [30])).ToArray(),
-                        ["mjpeg"]), ct).ConfigureAwait(false);
+                        ["mjpeg"],
+                        Microphone: true), ct).ConfigureAwait(false);
                     break;
 
                 case MessageType.PairRequest:
@@ -236,6 +238,19 @@ public sealed class FakePhoneServer(FakePhoneOptions options) : IDisposable
                 case MessageType.SetResolution when _settings is not null:
                     var res = ProtocolJson.Deserialize<SetResolution>(message);
                     await StartStreamingAsync(_settings with { Width = res.Width, Height = res.Height }).ConfigureAwait(false);
+                    break;
+
+                case MessageType.StartAudio:
+                    StopAudio();
+                    var audio = ProtocolJson.Deserialize<StartAudio>(message);
+                    _audioCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    _ = Task.Run(() => AudioLoopAsync(audio.SampleRate, _audioCts.Token));
+                    await writer.WriteControlAsync(MessageType.AudioState, new AudioState(AudioStates.Streaming), ct).ConfigureAwait(false);
+                    break;
+
+                case MessageType.StopAudio:
+                    StopAudio();
+                    await writer.WriteControlAsync(MessageType.AudioState, new AudioState(AudioStates.Stopped), ct).ConfigureAwait(false);
                     break;
 
                 case MessageType.Ping:
@@ -359,6 +374,47 @@ public sealed class FakePhoneServer(FakePhoneOptions options) : IDisposable
                     image.Sequence,
                     (ulong)image.CapturedUs).Write(header);
                 await writer.WriteAsync(MessageType.VideoFrame, header, image.Data, ct: token).ConfigureAwait(false);
+            }
+        }
+
+        private CancellationTokenSource? _audioCts;
+
+        public void StopAudioIfRunning() => StopAudio();
+
+        private void StopAudio()
+        {
+            _audioCts?.Cancel();
+            _audioCts = null;
+        }
+
+        /// <summary>"Microphone": a 440 Hz tone in 20 ms PCM frames, deadline-paced like a real mic.</summary>
+        private async Task AudioLoopAsync(int sampleRate, CancellationToken token)
+        {
+            var samplesPerFrame = sampleRate / 50;
+            var header = new byte[AudioFrameHeader.Size];
+            var pcm = new byte[samplesPerFrame * 2];
+            long sampleIndex = 0;
+            uint sequence = 0;
+            var next = MonoClock.NowUs;
+            try
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    for (var i = 0; i < samplesPerFrame; i++, sampleIndex++)
+                    {
+                        var value = (short)(Math.Sin(2 * Math.PI * 440 * sampleIndex / sampleRate) * 8000);
+                        pcm[i * 2] = (byte)value;
+                        pcm[i * 2 + 1] = (byte)(value >> 8);
+                    }
+                    new AudioFrameHeader(AudioCodec.PcmS16Le, 1, (uint)sampleRate, sequence++, (ulong)MonoClock.NowUs).Write(header);
+                    await writer.WriteAsync(MessageType.AudioFrame, header, pcm, ct: token).ConfigureAwait(false);
+                    next += 20_000;
+                    var wait = next - MonoClock.NowUs;
+                    if (wait > 1000) await Task.Delay(TimeSpan.FromMicroseconds(wait), token).ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex) when (ex is OperationCanceledException or IOException)
+            {
             }
         }
 

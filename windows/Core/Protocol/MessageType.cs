@@ -18,6 +18,9 @@ public enum MessageType : byte
     SetFps = 0x15,
     SetQuality = 0x16,
     SetTorch = 0x17,
+    StartAudio = 0x18,
+    StopAudio = 0x19,
+    AudioState = 0x1A,
 
     Ping = 0x20,
     Pong = 0x21,
