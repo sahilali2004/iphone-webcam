@@ -1,0 +1,29 @@
+{
+  "note": "Generated from the C# implementation (windows/Core). Both test suites must reproduce these exactly.",
+  "pairing": {
+    "code": "123456",
+    "phoneNonce": "000102030405060708090a0b0c0d0e0f",
+    "pcNonce": "101112131415161718191a1b1c1d1e1f",
+    "pcId": "pc-test-id",
+    "proof": "cd2a5500e2efd199401bb9304fbf46d42e4752e5c39d513aeb8e9de101694716",
+    "pairKey": "3423733d67980f492841df4ca9ce96befad9df72ecf682484984961451899322",
+    "mac": "9156c53069cabdb6afa20ec42e44399744c670a53cbcd4cfa342a67081455919"
+  },
+  "messageHeader": {
+    "type": 16,
+    "flags": 258,
+    "length": 1234,
+    "seq": 2695938256,
+    "bytes": "4957011002010000d2040000d0c0b0a0"
+  },
+  "videoFrameHeader": {
+    "codec": 1,
+    "flags": 3,
+    "rotation": 1,
+    "width": 1920,
+    "height": 1080,
+    "frameId": 42,
+    "ptsUs": 123456789012,
+    "bytes": "01030100800738042a000000141a99be1c000000"
+  }
+}

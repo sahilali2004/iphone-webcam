@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>IPhoneWebcam.Core</RootNamespace>
+    <AssemblyName>IPhoneWebcam.Core</AssemblyName>
+    <!-- WPF imaging (WIC) is used for JPEG decode. -->
+    <UseWPF>true</UseWPF>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="IPhoneWebcam.Core.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="System.IO" />
+  </ItemGroup>
+</Project>

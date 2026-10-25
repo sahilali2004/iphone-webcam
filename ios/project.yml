@@ -1,0 +1,40 @@
+# XcodeGen spec: `brew install xcodegen && cd ios && xcodegen generate` → iPhoneWebcam.xcodeproj
+name: iPhoneWebcam
+options:
+  bundleIdPrefix: local.iphonewebcam
+  deploymentTarget:
+    iOS: "16.0"
+packages:
+  IWCore:
+    path: IWCore
+targets:
+  iPhoneWebcam:
+    type: application
+    platform: iOS
+    sources:
+      - iPhoneWebcam/Sources
+    dependencies:
+      - package: IWCore
+    info:
+      path: iPhoneWebcam/Info.plist
+      properties:
+        CFBundleDisplayName: iPhone Webcam
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UIRequiresFullScreen: true
+        # Landscape-right only: UI and stream share one orientation (rotation support later).
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationLandscapeRight]
+        UIApplicationSupportsIndirectInputEvents: true
+        NSCameraUsageDescription: iPhone Webcam sends the camera feed to your PC so it can be used as a webcam. Video stays on your local network.
+        NSLocalNetworkUsageDescription: iPhone Webcam lets your PC find and connect to this iPhone over your local network.
+        NSBonjourServices: [_iphonewebcam._tcp]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: local.iphonewebcam.app
+        MARKETING_VERSION: "0.1.0"
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_STYLE: Automatic
+    scheme: {}

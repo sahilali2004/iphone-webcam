@@ -1,0 +1,197 @@
+<Window x:Class="IPhoneWebcam.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:IPhoneWebcam.App.ViewModels"
+        xmlns:local="clr-namespace:IPhoneWebcam.App"
+        Title="iPhone Webcam"
+        Width="1080" Height="600" MinWidth="760" MinHeight="460"
+        FontFamily="{StaticResource UiFont}"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.Resources>
+        <local:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+        <local:InverseBoolConverter x:Key="Inverse" />
+
+        <!-- Small grey caption above a value: sentence case, no tracking. -->
+        <Style x:Key="Caption" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Margin" Value="0,0,0,2" />
+        </Style>
+        <Style x:Key="Value" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
+
+        <!-- Viewfinder corner bracket (top-left orientation; others are rotated copies). -->
+        <Style x:Key="Corner" TargetType="Path">
+            <Setter Property="Data" Value="M0,22 L0,0 L22,0" />
+            <Setter Property="Stroke" Value="#D8FFFFFF" />
+            <Setter Property="StrokeThickness" Value="2" />
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="Margin" Value="14" />
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+        </Style>
+    </Window.Resources>
+
+    <Window.DataContext>
+        <vm:MainViewModel />
+    </Window.DataContext>
+
+    <Grid Margin="20,16,20,12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="20" />
+            <ColumnDefinition Width="260" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Viewfinder: the main element. Always black, like a camera monitor, regardless of theme. -->
+        <Border Grid.Column="0" CornerRadius="6" Background="Black" ClipToBounds="True">
+            <Grid>
+                <Image Source="{Binding Preview}" Stretch="Uniform" RenderOptions.BitmapScalingMode="Linear" />
+
+                <!-- Empty state -->
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="360"
+                            Visibility="{Binding HasPreview, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"
+                            x:Name="EmptyState">
+                    <TextBlock Text="{Binding Status}" FontFamily="{StaticResource DisplayFont}" FontSize="24"
+                               Foreground="#F2F2F2" TextAlignment="Center" />
+                    <TextBlock Text="{Binding StatusDetail}" FontSize="13" Foreground="#A0A0A6"
+                               TextAlignment="Center" TextWrapping="Wrap" Margin="0,6,0,0" />
+                </StackPanel>
+
+                <!-- Pairing prompt, over the viewfinder because it's what the user must deal with now. -->
+                <Border Visibility="{Binding ShowPairing, Converter={StaticResource BoolToVisibility}}"
+                        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                        CornerRadius="8" Padding="24,20" MinWidth="320"
+                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <StackPanel>
+                        <TextBlock Text="Pair with this iPhone" FontFamily="{StaticResource DisplayFont}" FontSize="20" />
+                        <TextBlock Text="Type the 6-digit code shown on the iPhone." Style="{StaticResource Caption}" Margin="0,4,0,14" FontSize="13" />
+                        <TextBox x:Name="PairingCodeBox" Text="{Binding PairingCode, UpdateSourceTrigger=PropertyChanged}"
+                                 FontSize="28" MaxLength="6" TextAlignment="Center"
+                                 Typography.NumeralAlignment="Tabular" InputScope="Number" />
+                        <TextBlock Text="{Binding PairingError}" Foreground="{StaticResource TallyLiveBrush}"
+                                   Margin="0,8,0,0" TextWrapping="Wrap" />
+                        <Button Content="Pair" Command="{Binding SubmitPairingCommand}" IsDefault="True"
+                                Style="{DynamicResource AccentButtonStyle}" HorizontalAlignment="Stretch"
+                                Margin="0,12,0,0" Padding="0,8" />
+                    </StackPanel>
+                </Border>
+
+                <Path Style="{StaticResource Corner}" HorizontalAlignment="Left" VerticalAlignment="Top" />
+                <Path Style="{StaticResource Corner}" HorizontalAlignment="Right" VerticalAlignment="Top">
+                    <Path.RenderTransform><RotateTransform Angle="90" /></Path.RenderTransform>
+                </Path>
+                <Path Style="{StaticResource Corner}" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                    <Path.RenderTransform><RotateTransform Angle="180" /></Path.RenderTransform>
+                </Path>
+                <Path Style="{StaticResource Corner}" HorizontalAlignment="Left" VerticalAlignment="Bottom">
+                    <Path.RenderTransform><RotateTransform Angle="270" /></Path.RenderTransform>
+                </Path>
+            </Grid>
+        </Border>
+
+        <!-- Side panel: status, then stream numbers, then connection controls. -->
+        <DockPanel Grid.Column="2" LastChildFill="False">
+
+            <!-- Tally + status -->
+            <StackPanel DockPanel.Dock="Top">
+                <StackPanel Orientation="Horizontal">
+                    <Ellipse x:Name="TallyLight" Width="12" Height="12" VerticalAlignment="Center">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Fill" Value="{StaticResource TallyIdleBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Tally}" Value="{x:Static vm:Tally.Busy}">
+                                        <Setter Property="Fill" Value="{StaticResource TallyBusyBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Tally}" Value="{x:Static vm:Tally.Live}">
+                                        <Setter Property="Fill" Value="{StaticResource TallyLiveBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+                    <TextBlock Text="{Binding Status}" FontFamily="{StaticResource DisplayFont}" FontSize="22"
+                               Margin="10,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+                <TextBlock Text="{Binding DeviceName}" Style="{StaticResource Caption}" FontSize="13" Margin="22,2,0,0" />
+            </StackPanel>
+
+            <Separator DockPanel.Dock="Top" Margin="0,16" />
+
+            <!-- Stream numbers: two columns, values aligned. -->
+            <Grid DockPanel.Dock="Top">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="14" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="14" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Grid.Column="0">
+                    <TextBlock Text="Resolution" Style="{StaticResource Caption}" />
+                    <TextBlock Text="{Binding ResolutionText}" Style="{StaticResource Value}" />
+                </StackPanel>
+                <StackPanel Grid.Row="0" Grid.Column="1">
+                    <TextBlock Text="Frame rate" Style="{StaticResource Caption}" />
+                    <TextBlock Text="{Binding FpsText}" Style="{StaticResource Value}" />
+                </StackPanel>
+                <StackPanel Grid.Row="2" Grid.Column="0">
+                    <TextBlock Text="Latency" Style="{StaticResource Caption}" ToolTip="Capture on iPhone to decoded on PC" />
+                    <TextBlock Text="{Binding LatencyText}" Style="{StaticResource Value}" />
+                </StackPanel>
+                <StackPanel Grid.Row="2" Grid.Column="1">
+                    <TextBlock Text="Bitrate" Style="{StaticResource Caption}" />
+                    <TextBlock Text="{Binding BitrateText}" Style="{StaticResource Value}" />
+                </StackPanel>
+                <StackPanel Grid.Row="4" Grid.Column="0">
+                    <TextBlock Text="Dropped frames" Style="{StaticResource Caption}" />
+                    <TextBlock Text="{Binding DropsText}" Style="{StaticResource Value}" />
+                </StackPanel>
+                <StackPanel Grid.Row="4" Grid.Column="1">
+                    <TextBlock Text="Connection" Style="{StaticResource Caption}" />
+                    <TextBlock Text="{Binding ConnectionText}" Style="{StaticResource Value}" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </Grid>
+
+            <!-- Connection controls pinned to the bottom of the panel. -->
+            <StackPanel DockPanel.Dock="Bottom">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="76" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="iPhone address" Style="{StaticResource Caption}" />
+                        <TextBox Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsActive, Converter={StaticResource Inverse}}" x:Name="HostBox" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Port" Style="{StaticResource Caption}" />
+                        <TextBox Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsActive, Converter={StaticResource Inverse}}" x:Name="PortBox" />
+                    </StackPanel>
+                </Grid>
+                <Button x:Name="ConnectButton" Content="{Binding ConnectButtonText}" Command="{Binding ConnectCommand}"
+                        Style="{DynamicResource AccentButtonStyle}"
+                        HorizontalAlignment="Stretch" Margin="0,12,0,0" Padding="0,10" FontSize="15" />
+            </StackPanel>
+        </DockPanel>
+
+        <!-- Last log line: quiet, for diagnosing without opening the log file. -->
+        <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Text="{Binding LastLog}" Margin="2,10,0,0"
+                   FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}" TextTrimming="CharacterEllipsis" />
+    </Grid>
+</Window>

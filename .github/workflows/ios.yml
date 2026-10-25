@@ -1,0 +1,41 @@
+name: iOS
+
+on:
+  push:
+    paths: ["ios/**", "tests/protocol-vectors/**", ".github/workflows/ios.yml"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test IWCore (protocol + crypto vs. Windows vectors)
+        run: swift test --package-path ios/IWCore
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          cd ios && xcodegen generate
+
+      - name: Build (unsigned, device)
+        run: |
+          cd ios
+          xcodebuild -project iPhoneWebcam.xcodeproj -scheme iPhoneWebcam \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package unsigned IPA
+        run: |
+          cd ios/build/Build/Products/Release-iphoneos
+          mkdir -p Payload && cp -R iPhoneWebcam.app Payload/
+          zip -qry "$GITHUB_WORKSPACE/iPhoneWebcam-unsigned.ipa" Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iPhoneWebcam-unsigned-ipa
+          path: iPhoneWebcam-unsigned.ipa
+          retention-days: 14

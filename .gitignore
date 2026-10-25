@@ -1,0 +1,18 @@
+﻿# Windows / .NET / C++
+bin/
+obj/
+build/
+out/
+.vs/
+*.user
+*.aps
+# iOS
+ios/**/*.xcodeproj/
+ios/**/DerivedData/
+xcuserdata/
+*.ipa
+.DS_Store
+
+ios/iPhoneWebcam/Info.plist
+ios/build/
+ios/IWCore/.build/
