@@ -25,3 +25,4 @@ android/.idea/
 android/.kotlin/
 *.apk
 windows/VirtualCamera/build/
+dist/

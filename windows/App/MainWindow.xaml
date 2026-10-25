@@ -4,7 +4,7 @@
         xmlns:vm="clr-namespace:PhoneWebcam.App.ViewModels"
         xmlns:local="clr-namespace:PhoneWebcam.App"
         Title="Phone Webcam"
-        Width="1080" Height="600" MinWidth="760" MinHeight="460"
+        Width="1120" Height="680" MinWidth="820" MinHeight="560"
         FontFamily="{StaticResource UiFont}"
         WindowStartupLocation="CenterScreen">
 
@@ -16,12 +16,18 @@
         <Style x:Key="Caption" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-            <Setter Property="Margin" Value="0,0,0,2" />
+            <Setter Property="Margin" Value="0,0,0,3" />
         </Style>
         <Style x:Key="Value" TargetType="TextBlock">
             <Setter Property="FontSize" Value="15" />
             <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
+        <!-- Two-way segmented choice built from radio buttons styled as toggles. -->
+        <Style x:Key="Segment" TargetType="RadioButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="0,6" />
         </Style>
 
         <!-- Viewfinder corner bracket (top-left orientation; others are rotated copies). -->
@@ -44,7 +50,7 @@
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="20" />
-            <ColumnDefinition Width="260" />
+            <ColumnDefinition Width="280" />
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
@@ -56,10 +62,8 @@
             <Grid>
                 <Image Source="{Binding Preview}" Stretch="Uniform" RenderOptions.BitmapScalingMode="Linear" />
 
-                <!-- Empty state -->
-                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="360"
-                            Visibility="{Binding HasPreview, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"
-                            x:Name="EmptyState">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="400"
+                            Visibility="{Binding HasPreview, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
                     <TextBlock Text="{Binding Status}" FontFamily="{StaticResource DisplayFont}" FontSize="24"
                                Foreground="#F2F2F2" TextAlignment="Center" />
                     <TextBlock Text="{Binding StatusDetail}" FontSize="13" Foreground="#A0A0A6"
@@ -98,10 +102,9 @@
             </Grid>
         </Border>
 
-        <!-- Side panel: status, then stream numbers, then connection controls. -->
+        <!-- Side panel: status → phone & camera choices → stream numbers → webcam button. -->
         <DockPanel Grid.Column="2" LastChildFill="False">
 
-            <!-- Tally + status -->
             <StackPanel DockPanel.Dock="Top">
                 <StackPanel Orientation="Horizontal">
                     <Ellipse x:Name="TallyLight" Width="12" Height="12" VerticalAlignment="Center">
@@ -125,7 +128,41 @@
                 <TextBlock Text="{Binding DeviceName}" Style="{StaticResource Caption}" FontSize="13" Margin="22,2,0,0" />
             </StackPanel>
 
-            <Separator DockPanel.Dock="Top" Margin="0,16" />
+            <Separator DockPanel.Dock="Top" Margin="0,14" />
+
+            <!-- Choices -->
+            <StackPanel DockPanel.Dock="Top">
+                <TextBlock Text="Phone" Style="{StaticResource Caption}" />
+                <ComboBox x:Name="DevicePicker" ItemsSource="{Binding DeviceOptions}" SelectedItem="{Binding SelectedDevice}"
+                          DisplayMemberPath="Label" HorizontalAlignment="Stretch" />
+
+                <Grid Margin="0,8,0,0" Visibility="{Binding IsManual, Converter={StaticResource BoolToVisibility}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="6" />
+                        <ColumnDefinition Width="72" />
+                        <ColumnDefinition Width="6" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="HostBox" Grid.Column="0" Text="{Binding ManualHost, UpdateSourceTrigger=PropertyChanged}" ToolTip="Phone's Wi-Fi address, shown in the phone app" />
+                    <TextBox x:Name="PortBox" Grid.Column="2" Text="{Binding ManualPort, UpdateSourceTrigger=PropertyChanged}" ToolTip="Port" />
+                    <Button Grid.Column="4" Content="Connect" Command="{Binding ApplyManualCommand}" Padding="10,5" />
+                </Grid>
+
+                <TextBlock Text="Camera" Style="{StaticResource Caption}" Margin="0,12,0,3" />
+                <UniformGrid Columns="2">
+                    <RadioButton x:Name="RearButton" Content="Rear" GroupName="Camera" IsChecked="{Binding IsRear}" Style="{StaticResource Segment}" Margin="0,0,3,0" />
+                    <RadioButton x:Name="FrontButton" Content="Front" GroupName="Camera" IsChecked="{Binding IsFront}" Style="{StaticResource Segment}" Margin="3,0,0,0" />
+                </UniformGrid>
+
+                <TextBlock Text="Quality" Style="{StaticResource Caption}" Margin="0,12,0,3" />
+                <UniformGrid Columns="2">
+                    <RadioButton x:Name="Res720Button" Content="720p" GroupName="Quality" IsChecked="{Binding Is720}" Style="{StaticResource Segment}" Margin="0,0,3,0" />
+                    <RadioButton x:Name="Res1080Button" Content="1080p" GroupName="Quality" IsChecked="{Binding Is1080}" Style="{StaticResource Segment}" Margin="3,0,0,0" />
+                </UniformGrid>
+            </StackPanel>
+
+            <Separator DockPanel.Dock="Top" Margin="0,14" />
 
             <!-- Stream numbers: two columns, values aligned. -->
             <Grid DockPanel.Dock="Top">
@@ -135,9 +172,9 @@
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="14" />
+                    <RowDefinition Height="12" />
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="14" />
+                    <RowDefinition Height="12" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
@@ -150,7 +187,7 @@
                     <TextBlock Text="{Binding FpsText}" Style="{StaticResource Value}" />
                 </StackPanel>
                 <StackPanel Grid.Row="2" Grid.Column="0">
-                    <TextBlock Text="Latency" Style="{StaticResource Caption}" ToolTip="Capture on phone to decoded on PC" />
+                    <TextBlock Text="Latency" Style="{StaticResource Caption}" ToolTip="Capture on the phone to decoded on this PC" />
                     <TextBlock Text="{Binding LatencyText}" Style="{StaticResource Value}" />
                 </StackPanel>
                 <StackPanel Grid.Row="2" Grid.Column="1">
@@ -167,27 +204,12 @@
                 </StackPanel>
             </Grid>
 
-            <!-- Connection controls pinned to the bottom of the panel. -->
+            <!-- Webcam button pinned to the bottom of the panel. -->
             <StackPanel DockPanel.Dock="Bottom">
                 <TextBlock Text="{Binding VirtualCameraText}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,12" />
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="8" />
-                        <ColumnDefinition Width="76" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Text="Phone address" Style="{StaticResource Caption}" />
-                        <TextBox Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsActive, Converter={StaticResource Inverse}}" x:Name="HostBox" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="2">
-                        <TextBlock Text="Port" Style="{StaticResource Caption}" />
-                        <TextBox Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsActive, Converter={StaticResource Inverse}}" x:Name="PortBox" />
-                    </StackPanel>
-                </Grid>
-                <Button x:Name="ConnectButton" Content="{Binding ConnectButtonText}" Command="{Binding ConnectCommand}"
+                <Button x:Name="WebcamButton" Content="{Binding WebcamButtonText}" Command="{Binding ToggleWebcamCommand}"
                         Style="{DynamicResource AccentButtonStyle}"
-                        HorizontalAlignment="Stretch" Margin="0,12,0,0" Padding="0,10" FontSize="15" />
+                        HorizontalAlignment="Stretch" Padding="0,12" FontSize="16" />
             </StackPanel>
         </DockPanel>
 

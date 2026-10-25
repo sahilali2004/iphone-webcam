@@ -21,13 +21,14 @@ Stop-Service FrameServer -Force -ErrorAction SilentlyContinue
 Stop-Service FrameServerMonitor -Force -ErrorAction SilentlyContinue
 
 if ($Uninstall) {
-    if (Test-Path $dll) { & regsvr32.exe /s /u $dll; Remove-Item $dest -Recurse -Force }
+    if (Test-Path $dll) { Start-Process regsvr32.exe -ArgumentList "/s", "/u", "`"$dll`"" -Wait | Out-Null; Remove-Item $dest -Recurse -Force }
     Write-Host "Phone Webcam virtual camera uninstalled."
     exit 0
 }
 
 New-Item -ItemType Directory -Force $dest | Out-Null
 Copy-Item $Source $dll -Force
-& regsvr32.exe /s $dll
-if ($LASTEXITCODE -ne 0) { Write-Error "regsvr32 failed ($LASTEXITCODE)"; exit 1 }
+# regsvr32 is a GUI-subsystem program: PowerShell doesn't wait for it or set $LASTEXITCODE.
+$reg = Start-Process regsvr32.exe -ArgumentList "/s", "`"$dll`"" -Wait -PassThru
+if ($reg.ExitCode -ne 0) { Write-Error "regsvr32 failed ($($reg.ExitCode))"; exit 1 }
 Write-Host "Phone Webcam virtual camera installed: $dll"

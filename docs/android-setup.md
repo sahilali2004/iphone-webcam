@@ -11,9 +11,7 @@ Built and installed from this PC with Android Studio's SDK. No cloud build, no s
 
 ## Connect
 
-- **USB:** `.\scripts\android-usb.ps1` (runs `adb forward tcp:47809 tcp:47809`), then connect the Windows app to `127.0.0.1`. Re-run after replugging.
-- **Wi-Fi:** connect the Windows app to the address shown on the device.
-- First connection shows a 6-digit code on the device; type it on the PC.
+Automatic. The PC app lists Android devices on USB (adb) and phones that answer Wi-Fi discovery (UDP 47810), then connects to the best one (USB first). On first use it pairs with a 6-digit code shown on the device. `scripts\android-usb.ps1` is still there for manual testing with other tools.
 
 ## Measured (Galaxy Tab A 10.1 SM-T510, Android 11, USB, 2026-10-25)
 

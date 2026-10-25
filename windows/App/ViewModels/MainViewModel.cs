@@ -1,10 +1,11 @@
+using System.Collections.ObjectModel;
 using System.IO;
-using System.Net.Sockets;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using PhoneWebcam.Core.Devices;
 using PhoneWebcam.Core.Diagnostics;
 using PhoneWebcam.Core.Protocol;
 using PhoneWebcam.Core.Security;
@@ -22,65 +23,160 @@ public enum Tally
     Live,
 }
 
+/// <summary>An entry in the phone picker.</summary>
+public sealed record DeviceOption(string Key, string Label);
+
 /// <summary>
-/// Phase 3 receiver: connect to a phone (or TestSender) by address, pair, show the live feed and stats,
-/// and reconnect automatically. Device discovery and the virtual camera arrive in later phases.
+/// Dashboard: finds phones (USB via adb, Wi-Fi via discovery), keeps a connection to the chosen one, and
+/// runs the webcam: phone → decode → preview + virtual camera ("Phone Webcam" in other apps).
 /// </summary>
 public sealed class MainViewModel : ObservableObject, IDisposable
 {
-    private static readonly TimeSpan[] RetryDelays = [TimeSpan.FromSeconds(0.5), TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)];
-
     private readonly Dispatcher _dispatcher = Application.Current.Dispatcher;
+    private readonly AppSettings _settings = AppSettings.Load();
     private readonly IPairingStore _pairings = new DpapiPairingStore();
-    private readonly ITransport _transport = new WifiTransport();
+    private readonly AdbClient? _adb;
+    private readonly DeviceManager _devices;
+    private readonly WebcamController _controller;
     private readonly FramePipeline _pipeline = new(new MjpegDecoder());
-    private readonly DispatcherTimer _statsTimer;
-    private readonly VirtualCameraHost _virtualCamera = new();
     private readonly FramePublisher _publisher = new();
+    private readonly VirtualCameraHost _virtualCamera = new();
+    private readonly DispatcherTimer _statsTimer;
 
-    private CancellationTokenSource? _connectCts;
-    private PhoneSession? _session;
     private VideoFrame? _latestFrame;
     private int _renderQueued;
     private int _statsTicks;
+    private bool _disposed;
 
-    private string _host = "127.0.0.1";
-    private string _port = DeviceEndpoint.DefaultPort.ToString();
     private Tally _tally = Tally.Idle;
-    private string _status = "Not connected";
-    private string _statusDetail = "Enter the phone's address, then connect.";
+    private string _status = "Looking for phones";
+    private string _statusDetail = "Connect a phone by USB, or open Phone Webcam on a phone on this Wi-Fi.";
     private string _deviceName = "No phone";
+    private DeviceOption? _selectedDevice;
+    private string _manualHost;
+    private string _manualPort;
+    private bool _isFront;
+    private bool _is720;
+    private bool _webcamOn;
+    private bool _canStart;
     private string _connectionText = "—";
     private string _resolutionText = "—";
     private string _fpsText = "—";
     private string _latencyText = "—";
     private string _bitrateText = "—";
     private string _dropsText = "—";
-    private bool _isActive;
     private bool _showPairing;
     private string _pairingCode = "";
     private string? _pairingError;
     private string _lastLog = "";
+    private string _virtualCameraText = "Starting the camera for other apps…";
     private WriteableBitmap? _preview;
-    private string _virtualCameraText = "Starting the Phone Webcam camera…";
 
     public MainViewModel()
     {
-        ConnectCommand = new RelayCommand(ToggleConnection);
+        _manualHost = _settings.ManualHost;
+        _manualPort = _settings.ManualPort.ToString();
+        _isFront = _settings.Camera == "front";
+        _is720 = _settings.Height == 720;
+
+        var adbPath = AdbClient.Locate();
+        _adb = adbPath is null ? null : new AdbClient(adbPath);
+        if (_adb is null) Log.Warn("adb not found: Android USB connections are unavailable (Wi-Fi still works)");
+        _devices = new DeviceManager(_adb);
+        _controller = new WebcamController(_pairings, kind => kind == TransportKind.Usb && _adb is not null ? new AdbTransport(_adb) : new WifiTransport());
+
+        ToggleWebcamCommand = new RelayCommand(ToggleWebcam, () => _canStart || _webcamOn);
         SubmitPairingCommand = new RelayCommand(SubmitPairing, () => _pairingCode.Trim().Length == 6);
+        ApplyManualCommand = new RelayCommand(() => _ = RetargetAsync());
+
+        DeviceOptions.Add(new DeviceOption(AppSettings.AutomaticDevice, "Automatic (USB first)"));
+        DeviceOptions.Add(new DeviceOption(AppSettings.ManualDevice, "Enter an address…"));
+        _selectedDevice = DeviceOptions.FirstOrDefault(o => o.Key == _settings.DeviceKey) ?? DeviceOptions[0];
+        if (_settings.DeviceKey.StartsWith("usb:") || _settings.DeviceKey.StartsWith("wifi:"))
+        {
+            // Remembered device: keep it selectable even before it's found again.
+            _selectedDevice = new DeviceOption(_settings.DeviceKey, "Last used phone");
+            DeviceOptions.Insert(1, _selectedDevice);
+        }
+
+        _controller.StatusChanged += (status, detail) => Ui(() => OnControllerStatus(status, detail));
+        _controller.DeviceConnected += info => Ui(() => DeviceName = info.DeviceName);
+        _controller.PairingCodeRequired += () => Ui(() =>
+        {
+            PairingCode = "";
+            PairingError = null;
+            ShowPairing = true;
+        });
+        _controller.PairingFailed += reason => Ui(() => PairingError = reason);
+        _controller.FrameReceived += _pipeline.Submit;
         _pipeline.FrameDecoded += OnFrameDecoded;
+        _devices.DevicesChanged += list => Ui(() => OnDevicesChanged(list));
+
         _statsTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => RefreshStats(), _dispatcher);
+        _statsTimer.Start();
         Log.Written += entry => Ui(() => LastLog = entry.ToString());
+
         _ = StartVirtualCameraAsync();
+        _devices.Start();
+        _ = RetargetAsync();
     }
 
-    public ICommand ConnectCommand { get; }
+    public ObservableCollection<DeviceOption> DeviceOptions { get; } = [];
+
+    public ICommand ToggleWebcamCommand { get; }
 
     public ICommand SubmitPairingCommand { get; }
 
-    public string Host { get => _host; set => Set(ref _host, value); }
+    public ICommand ApplyManualCommand { get; }
 
-    public string Port { get => _port; set => Set(ref _port, value); }
+    public DeviceOption? SelectedDevice
+    {
+        get => _selectedDevice;
+        set
+        {
+            if (value is null || !Set(ref _selectedDevice, value)) return;
+            Raise(nameof(IsManual));
+            _settings.DeviceKey = value.Key;
+            _settings.Save();
+            _ = RetargetAsync();
+        }
+    }
+
+    public bool IsManual => _selectedDevice?.Key == AppSettings.ManualDevice;
+
+    public string ManualHost { get => _manualHost; set => Set(ref _manualHost, value); }
+
+    public string ManualPort { get => _manualPort; set => Set(ref _manualPort, value); }
+
+    public bool IsFront
+    {
+        get => _isFront;
+        set
+        {
+            if (Set(ref _isFront, value)) ApplySettings();
+        }
+    }
+
+    public bool IsRear
+    {
+        get => !_isFront;
+        set => IsFront = !value;
+    }
+
+    public bool Is720
+    {
+        get => _is720;
+        set
+        {
+            if (Set(ref _is720, value)) ApplySettings();
+        }
+    }
+
+    public bool Is1080
+    {
+        get => !_is720;
+        set => Is720 = !value;
+    }
 
     public Tally Tally { get => _tally; private set => Set(ref _tally, value); }
 
@@ -102,18 +198,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public string DropsText { get => _dropsText; private set => Set(ref _dropsText, value); }
 
-    /// <summary>Connecting, connected or retrying — i.e. the button means "Disconnect".</summary>
-    public bool IsActive
-    {
-        get => _isActive;
-        private set
-        {
-            if (Set(ref _isActive, value))
-                Raise(nameof(ConnectButtonText));
-        }
-    }
-
-    public string ConnectButtonText => IsActive ? "Disconnect" : "Connect";
+    public string WebcamButtonText => _webcamOn ? "Stop Webcam" : "Start Webcam";
 
     public bool ShowPairing { get => _showPairing; private set => Set(ref _showPairing, value); }
 
@@ -123,8 +208,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         set
         {
             // RequerySuggested only fires on keyboard/mouse input; paste or automation wouldn't re-enable Pair.
-            if (Set(ref _pairingCode, value))
-                CommandManager.InvalidateRequerySuggested();
+            if (Set(ref _pairingCode, value)) CommandManager.InvalidateRequerySuggested();
         }
     }
 
@@ -132,43 +216,213 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public string LastLog { get => _lastLog; private set => Set(ref _lastLog, value); }
 
+    /// <summary>Whether other apps can select "Phone Webcam", in plain words.</summary>
+    public string VirtualCameraText { get => _virtualCameraText; private set => Set(ref _virtualCameraText, value); }
+
     public WriteableBitmap? Preview
     {
         get => _preview;
         private set
         {
-            if (Set(ref _preview, value))
-                Raise(nameof(HasPreview));
+            if (Set(ref _preview, value)) Raise(nameof(HasPreview));
         }
     }
 
     public bool HasPreview => _preview is not null;
 
-    /// <summary>Whether other apps can select "Phone Webcam", in plain words.</summary>
-    public string VirtualCameraText { get => _virtualCameraText; private set => Set(ref _virtualCameraText, value); }
-
     public void Dispose()
     {
-        // Tell the phone this was deliberate so it doesn't treat it as a dropped link. Bounded so closing never hangs.
-        _session?.DisconnectAsync("app_closed").Wait(TimeSpan.FromMilliseconds(300));
-        _connectCts?.Cancel();
+        if (_disposed) return;
+        _disposed = true;
+        _statsTimer.Stop();
+        // Tell the phone this was deliberate. Bounded so closing never hangs.
+        _controller.Session?.DisconnectAsync("app_closed").Wait(TimeSpan.FromMilliseconds(300));
+        _controller.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2));
+        _devices.Dispose();
         _pipeline.Dispose();
         _publisher.Dispose();
         _virtualCamera.Dispose();
+    }
+
+    // ---- Device selection ----
+
+    private void OnDevicesChanged(IReadOnlyList<AvailableDevice> devices)
+    {
+        // Keep "Automatic" first and "Enter an address…" last; rebuild the device entries in between.
+        var selectedKey = _selectedDevice?.Key;
+        for (var i = DeviceOptions.Count - 1; i >= 0; i--)
+        {
+            var key = DeviceOptions[i].Key;
+            if (key != AppSettings.AutomaticDevice && key != AppSettings.ManualDevice && key != selectedKey) DeviceOptions.RemoveAt(i);
+        }
+        foreach (var device in devices)
+        {
+            var option = new DeviceOption(device.Key, device.Label);
+            var existing = DeviceOptions.FirstOrDefault(o => o.Key == device.Key);
+            if (existing is null)
+            {
+                DeviceOptions.Insert(DeviceOptions.Count - 1, option);
+            }
+            else if (existing.Label != option.Label)
+            {
+                // Selected entry found again: refresh its label without changing the selection.
+                var index = DeviceOptions.IndexOf(existing);
+                DeviceOptions[index] = option;
+                if (existing == _selectedDevice) Set(ref _selectedDevice, option, nameof(SelectedDevice));
+            }
+        }
+        _ = RetargetAsync();
+    }
+
+    private DeviceEndpoint? ResolveTarget(out string? problem)
+    {
+        problem = null;
+        var devices = _devices.Devices;
+        var key = _selectedDevice?.Key ?? AppSettings.AutomaticDevice;
+
+        if (key == AppSettings.ManualDevice)
+        {
+            if (string.IsNullOrWhiteSpace(ManualHost)) return null;
+            if (!int.TryParse(ManualPort, out var port) || port is < 1 or > 65535)
+            {
+                problem = "Port must be a number between 1 and 65535.";
+                return null;
+            }
+            _settings.ManualHost = ManualHost.Trim();
+            _settings.ManualPort = port;
+            _settings.Save();
+            return new DeviceEndpoint(TransportKind.Wifi, ManualHost.Trim(), ManualHost.Trim(), port);
+        }
+
+        if (key == AppSettings.AutomaticDevice)
+        {
+            var best = devices.FirstOrDefault(d => d.IsUsable && d.Endpoint.Kind == TransportKind.Usb)
+                       ?? devices.FirstOrDefault(d => d.IsUsable);
+            problem = best is null ? devices.FirstOrDefault()?.Problem : null;
+            return best?.Endpoint;
+        }
+
+        var chosen = devices.FirstOrDefault(d => d.Key == key);
+        problem = chosen?.Problem ?? (chosen is null ? "That phone isn't connected right now." : null);
+        return chosen is { IsUsable: true } ? chosen.Endpoint : null;
+    }
+
+    private async Task RetargetAsync()
+    {
+        var target = ResolveTarget(out var problem);
+        if (!Equals(target, _controller.Target))
+        {
+            Log.Info(target is null ? "No phone selected" : $"Using {target}");
+            ConnectionText = target is null ? "—" : target.Kind == TransportKind.Usb ? "USB" : $"Wi-Fi · {target.Host}";
+            await _controller.SetTargetAsync(target);
+        }
+        if (target is null)
+        {
+            SetStatus(Tally.Idle, "No phone", problem ?? NoDeviceHint());
+            DeviceName = "No phone";
+            UpdateCanStart(false);
+        }
+    }
+
+    private string NoDeviceHint() => _adb is null
+        ? "Open Phone Webcam on a phone on this Wi-Fi, or choose Enter an address. USB needs Android platform-tools (adb)."
+        : "Connect a phone by USB (with USB debugging on), or open Phone Webcam on a phone on this Wi-Fi.";
+
+    // ---- Webcam ----
+
+    private StartStream CurrentSettings() =>
+        _is720 ? new StartStream(_isFront ? "front" : "back", 1280, 720, 30, "mjpeg", 0.7)
+               : new StartStream(_isFront ? "front" : "back", 1920, 1080, 30, "mjpeg", 0.7);
+
+    private void ApplySettings()
+    {
+        Raise(nameof(IsRear));
+        Raise(nameof(Is1080));
+        _settings.Camera = _isFront ? "front" : "back";
+        _settings.Height = _is720 ? 720 : 1080;
+        _settings.Save();
+        _ = Guard(_controller.ApplySettingsAsync(CurrentSettings()));
+    }
+
+    private void ToggleWebcam()
+    {
+        _webcamOn = !_webcamOn;
+        Raise(nameof(WebcamButtonText));
+        if (_webcamOn)
+        {
+            _ = Guard(_controller.ApplySettingsAsync(CurrentSettings()).ContinueWith(_ => _controller.StartWebcamAsync()).Unwrap());
+        }
+        else
+        {
+            _ = Guard(_controller.StopWebcamAsync());
+            Preview = null;
+        }
+    }
+
+    private void OnControllerStatus(WebcamStatus status, string detail)
+    {
+        if (status != WebcamStatus.Pairing) ShowPairing = false;
+        switch (status)
+        {
+            case WebcamStatus.NoDevice:
+                SetStatus(Tally.Idle, "No phone", detail);
+                break;
+            case WebcamStatus.Connecting:
+            case WebcamStatus.Retrying:
+                SetStatus(Tally.Busy, "Waiting for phone", detail);
+                break;
+            case WebcamStatus.Pairing:
+                SetStatus(Tally.Busy, "Pair this PC", detail);
+                break;
+            case WebcamStatus.Connected:
+                SetStatus(Tally.Busy, "Phone connected", _webcamOn ? "Starting the camera…" : "Press Start Webcam to use the phone as your webcam.");
+                break;
+            case WebcamStatus.Live:
+                SetStatus(Tally.Live, "Live", "Apps using “Phone Webcam” see the phone's camera.");
+                break;
+            case WebcamStatus.Paused:
+                SetStatus(Tally.Busy, "Paused on phone", detail);
+                break;
+        }
+        UpdateCanStart(status is WebcamStatus.Connected or WebcamStatus.Live or WebcamStatus.Paused);
+        if (status is not (WebcamStatus.Live or WebcamStatus.Paused))
+        {
+            Preview = null;
+            ResolutionText = FpsText = LatencyText = BitrateText = DropsText = "—";
+        }
+    }
+
+    private void UpdateCanStart(bool value)
+    {
+        _canStart = value;
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    private void SubmitPairing()
+    {
+        PairingError = null;
+        try
+        {
+            _ = Guard(_controller.SubmitPairingCodeAsync(PairingCode));
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        {
+            PairingError = ex.Message;
+        }
     }
 
     private async Task StartVirtualCameraAsync()
     {
         if (!VirtualCameraHost.IsInstalled)
         {
-            VirtualCameraText = @"Camera for other apps isn't installed. Run scripts\install-vcam.ps1 as administrator.";
+            VirtualCameraText = "The camera for other apps isn't installed. Run the Phone Webcam installer.";
             return;
         }
         try
         {
             var hr = await _virtualCamera.StartAsync();
             VirtualCameraText = hr >= 0
-                ? "“Phone Webcam” is available in Chrome, Teams, Zoom, OBS and the Camera app."
+                ? "Choose “Phone Webcam” as the camera in Chrome, Teams, Zoom, OBS or the Camera app."
                 : VirtualCameraHost.Explain(hr);
         }
         catch (Exception ex)
@@ -178,164 +432,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void ToggleConnection()
-    {
-        if (IsActive)
-        {
-            _ = _session?.DisconnectAsync();
-            _connectCts?.Cancel();
-            return;
-        }
-
-        if (!int.TryParse(Port, out var port) || port is < 1 or > 65535)
-        {
-            SetStatus(Tally.Idle, "Check the port", "Port must be a number between 1 and 65535.");
-            return;
-        }
-
-        var endpoint = new DeviceEndpoint(TransportKind.Wifi, Host.Trim(), Host.Trim(), port);
-        _connectCts = new CancellationTokenSource();
-        IsActive = true;
-        _statsTimer.Start();
-        _ = RunConnectionAsync(endpoint, _connectCts.Token);
-    }
-
-    private async Task RunConnectionAsync(DeviceEndpoint endpoint, CancellationToken ct)
-    {
-        var attempt = 0;
-        while (!ct.IsCancellationRequested)
-        {
-            try
-            {
-                SetStatus(Tally.Busy, attempt == 0 ? "Connecting" : "Reconnecting", endpoint.ToString());
-                var stream = await _transport.ConnectAsync(endpoint, ct);
-                attempt = 0;
-                await using var session = new PhoneSession(stream, _pairings);
-                AttachSession(session, endpoint);
-                await session.RunAsync(ct);
-
-                // Peer closed gracefully (user stopped the phone app): don't hammer it with retries.
-                SetStatus(Tally.Idle, "Phone disconnected", "Connect again when the phone app is ready.");
-                break;
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                Log.Warn($"Connection to {endpoint} failed: {ex.GetType().Name}: {ex.Message}");
-                SetStatus(Tally.Busy, "Waiting for phone", Explain(ex, endpoint));
-            }
-            finally
-            {
-                DetachSession();
-            }
-
-            try
-            {
-                await Task.Delay(RetryDelays[Math.Min(attempt++, RetryDelays.Length - 1)], ct);
-            }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
-        }
-
-        Ui(() =>
-        {
-            IsActive = false;
-            _statsTimer.Stop();
-            if (Tally != Tally.Idle)
-                SetStatus(Tally.Idle, "Not connected", "Enter the phone's address, then connect.");
-        });
-    }
-
-    private void AttachSession(PhoneSession session, DeviceEndpoint endpoint)
-    {
-        _session = session;
-        session.FrameReceived += _pipeline.Submit;
-        session.DeviceInfoReceived += info => Ui(() =>
-        {
-            DeviceName = info.DeviceName;
-            ConnectionText = $"Wi-Fi · {endpoint.Host}";
-        });
-        session.PairingCodeRequired += () => Ui(() =>
-        {
-            PairingCode = "";
-            PairingError = null;
-            ShowPairing = true;
-            SetStatus(Tally.Busy, "Pair this PC", "Type the 6-digit code shown on the phone.");
-        });
-        session.PairingFailed += reason => Ui(() => PairingError = reason);
-        session.StateChanged += state => Ui(() =>
-        {
-            switch (state)
-            {
-                case SessionState.Authorized:
-                    ShowPairing = false;
-                    SetStatus(Tally.Busy, "Connected", "Starting the camera on the phone.");
-                    break;
-                case SessionState.Streaming:
-                    ShowPairing = false;
-                    SetStatus(Tally.Live, "Live", $"Receiving from {DeviceName}.");
-                    break;
-            }
-        });
-        session.StreamStateChanged += state => Ui(() =>
-        {
-            if (state.State == StreamStates.Paused)
-                SetStatus(Tally.Busy, "Paused on phone", state.Reason ?? "Bring the phone app to the foreground to resume.");
-        });
-    }
-
-    private void DetachSession()
-    {
-        _session = null;
-        Ui(() =>
-        {
-            ShowPairing = false;
-            Preview = null;
-            DeviceName = "No phone";
-            ConnectionText = ResolutionText = FpsText = LatencyText = BitrateText = DropsText = "—";
-        });
-    }
-
-    private void SubmitPairing()
-    {
-        var session = _session;
-        if (session is null)
-            return;
-        PairingError = null;
-        try
-        {
-            _ = session.SubmitPairingCodeAsync(PairingCode);
-        }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
-        {
-            PairingError = ex.Message;
-        }
-    }
-
-    private static string Explain(Exception ex, DeviceEndpoint endpoint) => ex switch
-    {
-        SocketException { SocketErrorCode: SocketError.ConnectionRefused } =>
-            $"Nothing is accepting connections at {endpoint.Host}:{endpoint.Port}. Open Phone Webcam on the phone and keep it in the foreground.",
-        SocketException { SocketErrorCode: SocketError.HostUnreachable or SocketError.NetworkUnreachable } =>
-            $"{endpoint.Host} can't be reached. Check the PC and phone are on the same network.",
-        OperationCanceledException or TimeoutException =>
-            "The phone stopped responding. Unlock it and keep Phone Webcam open.",
-        InvalidOperationException => ex.Message,
-        EndOfStreamException or IOException => "The connection dropped. Retrying.",
-        ProtocolException => "The phone app sent data this version doesn't understand. Update both apps.",
-        _ => "Connection failed. Retrying.",
-    };
-
-    // ---- Preview: latest-frame-wins hand-off from the decode thread to the UI thread ----
+    // ---- Frames: decode thread → virtual camera + preview ----
 
     private void OnFrameDecoded(VideoFrame frame)
     {
-        _session?.Stats.OnFrameDecoded(frame.DecodeUs);
+        _controller.Session?.Stats.OnFrameDecoded(frame.DecodeUs);
         _publisher.Publish(frame);
         Interlocked.Exchange(ref _latestFrame, frame)?.Dispose();
         if (Interlocked.Exchange(ref _renderQueued, 1) == 0)
@@ -346,7 +447,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         Volatile.Write(ref _renderQueued, 0);
         using var frame = Interlocked.Exchange(ref _latestFrame, null);
-        if (frame is null || _session is null)
+        if (frame is null || !_webcamOn)
             return;
 
         var bitmap = _preview;
@@ -360,10 +461,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void RefreshStats()
     {
-        var session = _session;
-        if (session is null)
+        var session = _controller.Session;
+        if (session is null || _controller.Status != WebcamStatus.Live)
             return;
-        session.Stats.DroppedOnPc = _pipeline.DroppedFrames;
+        session.Stats.DroppedOnPc = _pipeline.DroppedFrames + _publisher.DroppedFrames;
         var s = session.Stats.Sample();
         if (s.Width == 0)
             return;
@@ -374,15 +475,29 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         DropsText = $"{s.DroppedOnPhone + s.DroppedOnPc}";
 
         if (++_statsTicks % 10 == 0)
-            Log.Info($"Stats: {s.Width}x{s.Height} {s.DecodeFps:0.0} fps, {s.BitrateMbps:0.0} Mbps, latency {s.LatencyMs:0.0} ms, decode {s.DecodeMs:0.0} ms, dropped phone/pc {s.DroppedOnPhone}/{s.DroppedOnPc}");
+            Log.Info($"Stats: {s.Width}x{s.Height} {s.DecodeFps:0.0} fps, {s.BitrateMbps:0.0} Mbps, latency {s.LatencyMs:0.0} ms, decode {s.DecodeMs:0.0} ms, dropped phone/pc {s.DroppedOnPhone}/{s.DroppedOnPc}, apps reading: {_publisher.IsCameraReading}");
     }
 
-    private void SetStatus(Tally tally, string status, string detail) => Ui(() =>
+    // ---- Helpers ----
+
+    private static async Task Guard(Task task)
+    {
+        try
+        {
+            await task;
+        }
+        catch (Exception ex) when (ex is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+            Log.Debug($"Command failed: {ex.Message}");
+        }
+    }
+
+    private void SetStatus(Tally tally, string status, string detail)
     {
         Tally = tally;
         Status = status;
         StatusDetail = detail;
-    });
+    }
 
     private void Ui(Action action)
     {

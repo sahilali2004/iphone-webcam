@@ -6,8 +6,8 @@ public enum TransportKind
     Usb,
 }
 
-/// <summary>Where to reach a phone. Wi-Fi uses Host/Port; USB uses UsbDeviceId (usbmuxd DeviceID).</summary>
-public sealed record DeviceEndpoint(TransportKind Kind, string DisplayName, string? Host = null, int Port = DeviceEndpoint.DefaultPort, int? UsbDeviceId = null)
+/// <summary>Where to reach a phone. Wi-Fi uses Host/Port; USB uses Serial (adb serial for Android) and Port on the device.</summary>
+public sealed record DeviceEndpoint(TransportKind Kind, string DisplayName, string? Host = null, int Port = DeviceEndpoint.DefaultPort, string? Serial = null)
 {
     public const int DefaultPort = 47809;
 

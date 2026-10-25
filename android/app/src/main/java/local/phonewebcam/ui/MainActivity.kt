@@ -25,6 +25,7 @@ import local.phonewebcam.camera.JpegEncoder
 import local.phonewebcam.camera.StreamResolution
 import local.phonewebcam.net.DeviceIdentity
 import local.phonewebcam.net.DeviceInfoTemplate
+import local.phonewebcam.net.DiscoveryResponder
 import local.phonewebcam.net.FrameGate
 import local.phonewebcam.net.MonoClock
 import local.phonewebcam.net.PairingStore
@@ -58,6 +59,7 @@ class MainActivity : AppCompatActivity(), ServerListener {
     private lateinit var startButton: MaterialButton
 
     private lateinit var server: StreamServer
+    private var discovery: DiscoveryResponder? = null
     private lateinit var camera: CameraController
     private val gate = FrameGate()
     private val encoder = JpegEncoder()
@@ -150,6 +152,7 @@ class MainActivity : AppCompatActivity(), ServerListener {
     override fun onDestroy() {
         super.onDestroy()
         if (isRunning) server.stop()
+        discovery?.stop()
     }
 
     // MARK: user actions
@@ -165,7 +168,9 @@ class MainActivity : AppCompatActivity(), ServerListener {
     private fun startCamera() {
         showError(null)
         bindCamera {
-            server.start(deviceInfo())
+            val info = deviceInfo()
+            server.start(info)
+            discovery = DiscoveryResponder(this, info.deviceId, info.deviceName, StreamServer.PORT).also { it.start() }
             isRunning = true
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             fpsWindowStart = MonoClock.nowUs
@@ -178,6 +183,8 @@ class MainActivity : AppCompatActivity(), ServerListener {
     private fun stopCamera() {
         gate.setStreaming(false)
         server.stop()
+        discovery?.stop()
+        discovery = null
         camera.unbind()
         isRunning = false
         isStreaming = false

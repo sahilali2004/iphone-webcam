@@ -3,6 +3,8 @@
 
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Wi-Fi discovery: receive the PC's broadcast probe even in power-save. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-feature android:name="android.hardware.camera.any" android:required="true" />
 
     <!-- allowBackup=false: pairing keys must never leave the device. -->

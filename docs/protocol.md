@@ -139,8 +139,18 @@ The iPhone also pings the PC (same messages, roles swapped) to detect a dead lin
 
 ## 8. Discovery (Wi-Fi)
 
-Bonjour service type `_iphonewebcam._tcp`, port 47809, TXT: `id=<deviceId>`, `name=<deviceName>`, `proto=1`. `deviceId` is a random UUID created on first launch (not a hardware identifier). Manual `ip:port` entry is always available.
+**UDP probe (implemented: Windows + Android).** The PC sends the 11 ASCII bytes `PWDISCOVER1` to UDP port **47810**, both to `255.255.255.255` and to each IPv4 interface's directed broadcast. A phone running the app replies unicast with UTF-8 JSON `{"deviceId": "...", "name": "...", "port": 47809}`. Both sides ignore non-private, non-link-local peers. Android holds a Wi-Fi multicast lock while answering, because some drivers drop broadcasts in power-save.
+
+**Bonjour (iOS only, not browsed by the PC yet).** Service type `_iphonewebcam._tcp`, port 47809, TXT: `id=<deviceId>`, `name=<deviceName>`, `proto=1`.
+
+`deviceId` is a random UUID created on first launch, not a hardware identifier. Manual `ip:port` entry is always available.
+
+**USB (Android).** No discovery packets: the PC lists devices with `adb devices -l` and connects through `adb forward tcp:0 tcp:47809`.
 
 ## 9. Test vectors
 
-`tests/protocol-vectors/*.bin` + `*.json` describing expected decodes. Both the Swift and C# test suites parse the same files, guaranteeing the two implementations agree.
+`tests/protocol-vectors/vectors.json`: pairing crypto and header byte layouts, generated from the C# implementation and checked by the C#, Kotlin and Swift test suites, so all three agree byte for byte.
+
+## 10. Virtual-camera frame pipe (PC-internal)
+
+`\\.\pipe\PhoneWebcam.Frames`, app → `PhoneWebcamSource.dll`. Per frame: a 32-byte little-endian header (`magic 'PWF1' u32, width u32, height u32, format u32 = 1 (NV12), payloadSize u32, flags u32 = 0, frameId u64`), then an NV12 frame (stride = width, BT.709 limited range). Latest-frame-wins: the app drops a frame if the previous one is still being written.

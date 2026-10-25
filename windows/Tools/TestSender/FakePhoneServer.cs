@@ -17,6 +17,15 @@ public sealed class FakePhoneOptions
 
     public string DeviceName { get; init; } = "Test Sender";
 
+    /// <summary>UDP discovery port to answer on (Discovery.Port in production); 0 disables.</summary>
+    public int DiscoveryPort { get; init; }
+
+    /// <summary>Paired PCs; pass the same dictionary to a new server to simulate the app restarting.</summary>
+    public Dictionary<string, byte[]> PairedPcs { get; init; } = [];
+
+    /// <summary>Stable id, like the real app's per-install id.</summary>
+    public string DeviceId { get; init; } = Guid.NewGuid().ToString();
+
     public Func<int, int, int, double, IJpegSource> SourceFactory { get; init; } =
         (w, h, fps, q) => new SyntheticJpegSource(w, h, fps, q);
 }
@@ -30,9 +39,11 @@ public sealed class FakePhoneServer(FakePhoneOptions options) : IDisposable
     private static readonly (int W, int H)[] SupportedSizes = [(1280, 720), (1920, 1080)];
 
     private readonly FakePhoneOptions _options = options;
-    private readonly Dictionary<string, byte[]> _pairedPcs = [];
-    private readonly string _deviceId = Guid.NewGuid().ToString();
+    private readonly Dictionary<string, byte[]> _pairedPcs = options.PairedPcs;
+    private readonly string _deviceId = options.DeviceId;
     private readonly TcpListener _listener = new(options.Bind, options.Port);
+    private UdpClient? _discovery;
+    private readonly CancellationTokenSource _shutdown = new(); // ends live connections, like the app being killed
     private int _activeClients;
 
     /// <summary>Raised when a PC requests pairing; the real app shows this code on screen.</summary>
@@ -42,11 +53,16 @@ public sealed class FakePhoneServer(FakePhoneOptions options) : IDisposable
 
     public int ActiveClients => Volatile.Read(ref _activeClients);
 
-    public void Start() => _listener.Start();
+    public void Start()
+    {
+        _listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+        _listener.Start();
+    }
 
     public async Task RunAsync(CancellationToken ct)
     {
         Start();
+        if (_options.DiscoveryPort > 0) _ = Task.Run(() => AnswerDiscoveryAsync(ct), ct);
         Log.Info($"Fake phone listening on {_options.Bind}:{Port}");
         try
         {
@@ -61,7 +77,31 @@ public sealed class FakePhoneServer(FakePhoneOptions options) : IDisposable
         }
     }
 
-    public void Dispose() => _listener.Dispose();
+    public void Dispose()
+    {
+        _shutdown.Cancel();
+        _listener.Dispose();
+        _discovery?.Dispose();
+    }
+
+    /// <summary>Replies to "PWDISCOVER1" probes like the phone apps do.</summary>
+    private async Task AnswerDiscoveryAsync(CancellationToken ct)
+    {
+        _discovery = new UdpClient(new IPEndPoint(_options.Bind, _options.DiscoveryPort));
+        var reply = PhoneWebcam.Core.Devices.Discovery.BuildReply(_deviceId, _options.DeviceName, Port);
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                var probe = await _discovery.ReceiveAsync(ct).ConfigureAwait(false);
+                if (probe.Buffer.AsSpan().SequenceEqual(PhoneWebcam.Core.Devices.Discovery.Probe))
+                    await _discovery.SendAsync(reply, probe.RemoteEndPoint, ct).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or SocketException)
+        {
+        }
+    }
 
     private async Task HandleClientAsync(TcpClient client, CancellationToken serverCt)
     {
@@ -81,7 +121,7 @@ public sealed class FakePhoneServer(FakePhoneOptions options) : IDisposable
         }
 
         Log.Info($"Client connected: {remote}");
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(serverCt);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(serverCt, _shutdown.Token);
         var connection = new Connection(this, stream, writer, cts.Token);
         try
         {
